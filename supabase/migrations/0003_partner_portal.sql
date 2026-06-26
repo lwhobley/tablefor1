@@ -25,12 +25,12 @@ language sql
 security definer
 set search_path = public
 stable
-as $$
+as $func$
   select *
   from public.restaurants
   where partner_email = auth.email()
   limit 1;
-$$;
+$func$;
 
 
 -- ---------- partner_upcoming_events() ----------
@@ -52,7 +52,7 @@ language sql
 security definer
 set search_path = public
 stable
-as $$
+as $func$
   select
     e.id,
     e.event_date,
@@ -65,7 +65,7 @@ as $$
     coalesce(
       array_agg(split_part(u.name, ' ', 1))
         filter (where b.status = 'confirmed' and u.name is not null),
-      '{}'::text[]
+      ARRAY[]::text[]
     ) as first_names
   from public.events e
   join public.restaurants r on r.id = e.restaurant_id
@@ -75,7 +75,7 @@ as $$
     and e.event_date >= now()
   group by e.id
   order by e.event_date asc;
-$$;
+$func$;
 
 
 -- ---------- partner_dashboard_stats() ----------
@@ -94,7 +94,7 @@ language sql
 security definer
 set search_path = public
 stable
-as $$
+as $func$
   select
     coalesce((
       select count(*) from public.events e
@@ -124,11 +124,16 @@ as $$
         and b.status = 'confirmed'
         and e.event_date between now() and now() + interval '30 days'
     ), 0) as gross_payout_cents;
-$$;
+$func$;
 
 
 -- ---------- grants ----------
--- RPC access from the authenticated role.
-grant execute on function public.partner_my_restaurant()      to authenticated;
-grant execute on function public.partner_upcoming_events()    to authenticated;
-grant execute on function public.partner_dashboard_stats()    to authenticated;
+-- These RPCs are SECURITY DEFINER and gate on auth.email() internally. We
+-- still revoke from anon/public so unauthenticated callers can't probe the
+-- /rest/v1/rpc/* endpoints, then grant explicitly to authenticated.
+revoke execute on function public.partner_my_restaurant()      from anon, public;
+revoke execute on function public.partner_upcoming_events()    from anon, public;
+revoke execute on function public.partner_dashboard_stats()    from anon, public;
+grant execute on function public.partner_my_restaurant()       to authenticated;
+grant execute on function public.partner_upcoming_events()     to authenticated;
+grant execute on function public.partner_dashboard_stats()     to authenticated;
