@@ -1,0 +1,36 @@
+{
+  "expo": {
+    "name": "Table for One",
+    "slug": "table-for-one",
+    "scheme": "tablefor1",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "backgroundColor": "#FFF7ED",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tablefor1.app"
+    },
+    "android": {
+      "package": "com.tablefor1.app"
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Table for One to access your photos so you can upload a profile picture."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "tsconfigPaths": true
+    }
+  }
+}
