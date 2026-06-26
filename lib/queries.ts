@@ -37,21 +37,30 @@ export function useUpdateProfile(userId: string | undefined) {
   });
 }
 
+export type EventWithRestaurant = EventRow & {
+  restaurant: { name: string; neighborhood: string; cuisine: string[] } | null;
+  spots_left: number | null;
+};
+
 export function useUpcomingEvents(city: string | null | undefined) {
   return useQuery({
     queryKey: ["events", city ?? "_all"],
     queryFn: async () => {
       const q = supabase
         .from("events")
-        .select("*")
-        .gte("starts_at", new Date().toISOString())
-        .in("status", ["open", "full"])
-        .order("starts_at", { ascending: true })
+        .select(
+          `id, restaurant_id, format, status, event_date, group_size,
+           price_cents, city, description,
+           restaurant:restaurants(name, neighborhood, cuisine)`,
+        )
+        .gte("event_date", new Date().toISOString())
+        .in("status", ["open", "matched", "full"])
+        .order("event_date", { ascending: true })
         .limit(20);
       if (city) q.eq("city", city);
       const { data, error } = await q;
       if (error) throw error;
-      return (data ?? []) as EventRow[];
+      return (data ?? []) as unknown as EventWithRestaurant[];
     },
   });
 }

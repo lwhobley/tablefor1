@@ -26,27 +26,54 @@ export const supabase = createClient(
   },
 );
 
+export type EnergyLevel = "low_key" | "balanced" | "high_energy";
+export type ConvStyle = "listener" | "balanced" | "storyteller";
+export type Dietary =
+  | "none"
+  | "vegetarian"
+  | "vegan"
+  | "halal"
+  | "kosher"
+  | "gluten_free"
+  | "dairy_free";
+export type EventFormat =
+  | "dinner"
+  | "brunch"
+  | "late_night"
+  | "food_crawl"
+  | "chefs_table";
+export type EventStatus =
+  | "open"
+  | "matched"
+  | "full"
+  | "cancelled"
+  | "completed";
+
 export type Profile = {
   id: string;
-  name: string | null;
+  name: string;
   photo_url: string | null;
-  city: string | null;
-  food_prefs: string[] | null;
-  dietary: string[] | null;
-  energy_level: "chill" | "balanced" | "spirited" | null;
-  conv_style: "listener" | "storyteller" | "debater" | "curious" | null;
-  languages: string[] | null;
-  onboarded_at: string | null;
+  bio: string | null;
+  city: string;
+  neighborhood: string | null;
+  energy_level: EnergyLevel;
+  conv_style: ConvStyle;
+  food_prefs: string[];
+  dietary: Dietary[];
+  languages: string[];
+  is_active: boolean;
   created_at: string;
+  updated_at: string;
 };
 
 export type EventRow = {
   id: string;
-  restaurant_id: string | null;
-  city: string;
-  starts_at: string;
-  format: "brunch" | "dinner" | "food_crawl";
+  restaurant_id: string;
+  format: EventFormat;
+  status: EventStatus;
+  event_date: string;
   group_size: number;
   price_cents: number;
-  status: "draft" | "open" | "full" | "cancelled" | "completed";
+  city: string;
+  description: string | null;
 };

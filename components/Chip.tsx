@@ -1,4 +1,5 @@
 import { Pressable, Text } from "react-native";
+import type { Option } from "./preferences";
 
 export function Chip({
   label,
@@ -13,9 +14,7 @@ export function Chip({
     <Pressable
       onPress={onPress}
       className={`h-10 items-center justify-center rounded-full border px-4 ${
-        selected
-          ? "border-rust bg-rust"
-          : "border-ink/15 bg-white"
+        selected ? "border-rust bg-rust" : "border-ink/15 bg-white"
       }`}
     >
       <Text
@@ -29,31 +28,35 @@ export function Chip({
   );
 }
 
-export function ChipGroup({
+export function ChipGroup<T extends string>({
   options,
   values,
   onChange,
   multi = true,
 }: {
-  options: string[];
-  values: string[];
-  onChange: (next: string[]) => void;
+  options: Option<T>[];
+  values: T[];
+  onChange: (next: T[]) => void;
   multi?: boolean;
 }) {
   return (
     <>
       {options.map((opt) => {
-        const selected = values.includes(opt);
+        const selected = values.includes(opt.value);
         return (
           <Chip
-            key={opt}
-            label={opt}
+            key={opt.value}
+            label={opt.label}
             selected={selected}
             onPress={() => {
               if (multi) {
-                onChange(selected ? values.filter((v) => v !== opt) : [...values, opt]);
+                onChange(
+                  selected
+                    ? values.filter((v) => v !== opt.value)
+                    : [...values, opt.value],
+                );
               } else {
-                onChange(selected ? [] : [opt]);
+                onChange(selected ? ([] as T[]) : [opt.value]);
               }
             }}
           />

@@ -26,17 +26,22 @@ to `/auth/callback`.
 ## Supabase setup
 
 1. Create a new Supabase project.
-2. In the SQL editor, paste and run `supabase/migrations/0001_init.sql`.
-   This creates the full Phase 1–3 schema, enables RLS, and provisions the
-   public `avatars` storage bucket with owner-scoped write policies.
-3. In **Authentication → URL Configuration**, add your dev and prod URLs
+2. In the SQL editor, run `supabase/migrations/0001_init.sql` (full
+   Phase 1–3 schema, enums, RLS policies, updated_at + new-user triggers).
+3. Then run `supabase/migrations/0002_storage.sql` to provision the
+   public `avatars` bucket and owner-scoped storage policies.
+4. In **Authentication → URL Configuration**, add your dev and prod URLs
    (e.g. `http://localhost:8081`, `https://your-app.vercel.app`) as
    redirect URLs.
-4. Copy the project URL + anon key into `.env`.
+5. Copy the project URL + anon key into `.env`.
 
-The `handle_new_auth_user` trigger creates a matching row in `public.users`
-the first time someone confirms a magic link, so the app never has to
-race-create profile rows.
+The `handle_new_user` trigger creates a matching `public.users` row the
+first time someone confirms a magic link (with placeholder name `'New
+member'` and city `'Houston'`), so the app never has to race-create
+profile rows. Onboarding completion is tracked in
+`auth.users.raw_user_meta_data.onboarded_at` — set on the final
+onboarding step via `supabase.auth.updateUser` — so we never have to
+guess from partial profile state.
 
 ## Routing
 

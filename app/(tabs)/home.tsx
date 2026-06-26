@@ -1,11 +1,10 @@
 import { ActivityIndicator, FlatList, Text, View } from "react-native";
 import { Screen } from "../../components/Screen";
 import { useAuth } from "../../lib/auth";
-import { useProfile, useUpcomingEvents } from "../../lib/queries";
-import type { EventRow } from "../../lib/supabase";
+import { useProfile, useUpcomingEvents, type EventWithRestaurant } from "../../lib/queries";
 
-function EventCard({ event }: { event: EventRow }) {
-  const date = new Date(event.starts_at);
+function EventCard({ event }: { event: EventWithRestaurant }) {
+  const date = new Date(event.event_date);
   const dateLabel = date.toLocaleDateString(undefined, {
     weekday: "short",
     month: "short",
@@ -21,10 +20,13 @@ function EventCard({ event }: { event: EventRow }) {
         {event.format.replace("_", " ")}
       </Text>
       <Text className="font-serif text-2xl text-ink">
+        {event.restaurant?.name ?? "Restaurant TBA"}
+      </Text>
+      <Text className="text-sm text-ink/60">
         {dateLabel} · {timeLabel}
       </Text>
       <Text className="text-sm text-ink/60">
-        {event.city} · table of {event.group_size}
+        {event.restaurant?.neighborhood ?? event.city} · table of {event.group_size}
       </Text>
       <Text className="mt-1 text-sm text-ink/60">
         ${(event.price_cents / 100).toFixed(0)} per seat

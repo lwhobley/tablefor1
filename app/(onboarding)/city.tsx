@@ -5,9 +5,10 @@ import { Screen } from "../../components/Screen";
 import { Button } from "../../components/Button";
 import { ChipGroup } from "../../components/Chip";
 import { StepHeader } from "../../components/StepHeader";
-import { CITIES } from "../../components/preferences";
+import { CITY_OPTIONS } from "../../components/preferences";
 import { useAuth } from "../../lib/auth";
 import { useProfile, useUpdateProfile } from "../../lib/queries";
+import { markOnboardingComplete } from "../../lib/onboarding";
 
 export default function OnboardingCity() {
   const router = useRouter();
@@ -17,10 +18,9 @@ export default function OnboardingCity() {
   const [city, setCity] = useState<string[]>(profile?.city ? [profile.city] : []);
 
   async function finish() {
-    await update.mutateAsync({
-      city: city[0] ?? null,
-      onboarded_at: new Date().toISOString(),
-    });
+    if (!city[0]) return;
+    await update.mutateAsync({ city: city[0] });
+    await markOnboardingComplete();
     router.replace("/(tabs)/home");
   }
 
@@ -38,7 +38,7 @@ export default function OnboardingCity() {
           <Text className="text-sm font-medium text-ink/70">City</Text>
           <View className="flex-row flex-wrap gap-2">
             <ChipGroup
-              options={CITIES}
+              options={CITY_OPTIONS}
               values={city}
               onChange={setCity}
               multi={false}

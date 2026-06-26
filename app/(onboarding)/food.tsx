@@ -8,6 +8,7 @@ import { StepHeader } from "../../components/StepHeader";
 import { CUISINES, DIETARY } from "../../components/preferences";
 import { useAuth } from "../../lib/auth";
 import { useProfile, useUpdateProfile } from "../../lib/queries";
+import type { Dietary } from "../../lib/supabase";
 
 export default function OnboardingFood() {
   const router = useRouter();
@@ -15,7 +16,7 @@ export default function OnboardingFood() {
   const { data: profile } = useProfile(session?.user.id);
   const update = useUpdateProfile(session?.user.id);
   const [food, setFood] = useState<string[]>(profile?.food_prefs ?? []);
-  const [diet, setDiet] = useState<string[]>(profile?.dietary ?? []);
+  const [diet, setDiet] = useState<Dietary[]>(profile?.dietary ?? []);
 
   async function next() {
     await update.mutateAsync({ food_prefs: food, dietary: diet });

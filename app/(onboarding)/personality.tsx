@@ -5,28 +5,34 @@ import { Screen } from "../../components/Screen";
 import { Button } from "../../components/Button";
 import { ChipGroup } from "../../components/Chip";
 import { StepHeader } from "../../components/StepHeader";
-import { CONV_OPTIONS, ENERGY_OPTIONS } from "../../components/preferences";
+import {
+  CONV_OPTIONS,
+  ENERGY_OPTIONS,
+  LANGUAGE_OPTIONS,
+} from "../../components/preferences";
 import { useAuth } from "../../lib/auth";
 import { useProfile, useUpdateProfile } from "../../lib/queries";
-import type { Profile } from "../../lib/supabase";
+import type { ConvStyle, EnergyLevel } from "../../lib/supabase";
 
 export default function OnboardingPersonality() {
   const router = useRouter();
   const { session } = useAuth();
   const { data: profile } = useProfile(session?.user.id);
   const update = useUpdateProfile(session?.user.id);
-  const [energy, setEnergy] = useState<string[]>(
-    profile?.energy_level ? [profile.energy_level] : [],
+  const [energy, setEnergy] = useState<EnergyLevel[]>(
+    profile?.energy_level ? [profile.energy_level] : ["balanced"],
   );
-  const [conv, setConv] = useState<string[]>(
-    profile?.conv_style ? [profile.conv_style] : [],
+  const [conv, setConv] = useState<ConvStyle[]>(
+    profile?.conv_style ? [profile.conv_style] : ["balanced"],
   );
-  const [languages, setLanguages] = useState<string[]>(profile?.languages ?? []);
+  const [languages, setLanguages] = useState<string[]>(
+    profile?.languages ?? ["en"],
+  );
 
   async function next() {
     await update.mutateAsync({
-      energy_level: energy[0] as Profile["energy_level"],
-      conv_style: conv[0] as Profile["conv_style"],
+      energy_level: energy[0]!,
+      conv_style: conv[0]!,
       languages,
     });
     router.push("/(onboarding)/city");
@@ -46,7 +52,7 @@ export default function OnboardingPersonality() {
           <Text className="text-sm font-medium text-ink/70">Energy level</Text>
           <View className="flex-row flex-wrap gap-2">
             <ChipGroup
-              options={ENERGY_OPTIONS.map((o) => o.value)}
+              options={ENERGY_OPTIONS}
               values={energy}
               onChange={setEnergy}
               multi={false}
@@ -60,7 +66,7 @@ export default function OnboardingPersonality() {
           </Text>
           <View className="flex-row flex-wrap gap-2">
             <ChipGroup
-              options={CONV_OPTIONS.map((o) => o.value)}
+              options={CONV_OPTIONS}
               values={conv}
               onChange={setConv}
               multi={false}
@@ -72,7 +78,7 @@ export default function OnboardingPersonality() {
           <Text className="text-sm font-medium text-ink/70">Languages</Text>
           <View className="flex-row flex-wrap gap-2">
             <ChipGroup
-              options={["English", "Spanish", "French", "Mandarin", "Japanese"]}
+              options={LANGUAGE_OPTIONS}
               values={languages}
               onChange={setLanguages}
             />
