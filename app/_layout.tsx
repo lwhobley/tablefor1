@@ -26,6 +26,11 @@ function AuthGate() {
     // so Supabase can finish detecting the session in the URL before we
     // route the user anywhere.
     const onCallback = segments[0] === "auth" && segments[1] === "callback";
+    // /partner/* is the partner portal; its own layout gates auth and
+    // checks for a restaurants row keyed on partner_email. The diner gate
+    // never bounces partners around mid-flow.
+    const inPartner = segments[0] === "partner";
+    if (inPartner) return;
 
     if (!session) {
       if (!inAuthGroup && !onCallback) router.replace("/(auth)/login");
