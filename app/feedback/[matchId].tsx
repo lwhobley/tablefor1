@@ -6,6 +6,7 @@ import {
   ScrollView,
   Pressable,
   Alert,
+  TextInput,
 } from "react-native";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
@@ -219,6 +220,3 @@ export default function Feedback() {
     </Screen>
   );
 }
-
-// Import TextInput
-import { TextInput } from "react-native";

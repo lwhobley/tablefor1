@@ -1,78 +1,21 @@
-import "jsr:@supabase/functions-js/init";
+// Stripe webhook receiver. Verifies the signature (async — Deno's crypto is
+// only available asynchronously, so constructEventAsync is required), then
+// flips the matching booking to 'confirmed' on checkout.session.completed and
+// fires the confirmation email. Idempotent: a replayed event whose booking is
+// already confirmed is a no-op.
+
+import Stripe from "https://esm.sh/stripe@14";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import Stripe from "stripe";
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "");
-
-async function updateBooking(
-  bookingId: string,
-  status: string,
-  stripeSessionId?: string,
-  stripePaymentId?: string
-) {
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-
-  if (!supabaseServiceKey || !supabaseUrl) {
-    throw new Error("Missing Supabase configuration");
-  }
-
-  const updatePayload: Record<string, unknown> = { status };
-  if (stripeSessionId) updatePayload.stripe_session_id = stripeSessionId;
-  if (stripePaymentId) updatePayload.stripe_payment_id = stripePaymentId;
-
-  const response = await fetch(
-    `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`,
-    {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${supabaseServiceKey}`,
-        apikey: supabaseServiceKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(updatePayload),
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error(`Failed to update booking: ${response.statusText}`);
-  }
-}
-
-async function getBooking(bookingId: string) {
-  const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
-
-  if (!supabaseServiceKey || !supabaseUrl) {
-    throw new Error("Missing Supabase configuration");
-  }
-
-  const response = await fetch(
-    `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=*`,
-    {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${supabaseServiceKey}`,
-        apikey: supabaseServiceKey,
-      },
-    }
-  );
-
-  if (!response.ok) {
-    throw new Error("Failed to fetch booking");
-  }
-
-  const bookings = await response.json();
-  return Array.isArray(bookings) && bookings.length > 0
-    ? bookings[0]
-    : null;
-}
+const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
+  apiVersion: "2024-04-10",
+});
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
-
   if (req.method !== "POST") {
     return new Response("Method not allowed", {
       status: 405,
@@ -80,96 +23,100 @@ Deno.serve(async (req) => {
     });
   }
 
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+
   try {
     const body = await req.text();
     const sig = req.headers.get("stripe-signature");
-
-    if (!sig) {
-      return new Response(JSON.stringify({ error: "No signature" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    if (!sig) return json({ error: "No signature" }, 400);
 
     const webhookSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET");
-    if (!webhookSecret) {
-      throw new Error("STRIPE_WEBHOOK_SECRET not set");
-    }
+    if (!webhookSecret) throw new Error("STRIPE_WEBHOOK_SECRET not set");
 
     let event: Stripe.Event;
     try {
-      event = stripe.webhooks.constructEvent(body, sig, webhookSecret);
-    } catch (err) {
-      return new Response(
-        JSON.stringify({ error: `Webhook Error: ${(err as Error).message}` }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+      // constructEventAsync — the sync variant throws in Deno because
+      // SubtleCrypto can't be used synchronously.
+      event = await stripe.webhooks.constructEventAsync(
+        body,
+        sig,
+        webhookSecret,
       );
+    } catch (err) {
+      return json({ error: `Webhook Error: ${(err as Error).message}` }, 400);
     }
 
-    // Handle different event types
-    if (
-      event.type === "checkout.session.completed" ||
-      event.type === "payment_intent.succeeded"
-    ) {
-      const data = event.data.object as any;
+    if (event.type === "checkout.session.completed") {
+      const session = event.data.object as Stripe.Checkout.Session;
+      const bookingId = session.metadata?.booking_id;
 
-      if (event.type === "checkout.session.completed") {
-        const session = data as Stripe.Checkout.Session;
-        const bookingId = session.metadata?.booking_id;
+      if (!bookingId) {
+        console.error("No booking_id in session metadata");
+        return json({ received: true });
+      }
 
-        if (!bookingId) {
-          console.error("No booking_id in session metadata");
-          return new Response(JSON.stringify({ received: true }), {
-            status: 200,
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+      const admin = createClient(
+        Deno.env.get("SUPABASE_URL")!,
+        Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+      );
+
+      try {
+        const { data: booking } = await admin
+          .from("bookings")
+          .select("id, status")
+          .eq("id", bookingId)
+          .maybeSingle();
+
+        if (!booking) {
+          console.error(`Booking ${bookingId} not found`);
+          return json({ received: true });
         }
 
-        try {
-          const booking = await getBooking(bookingId);
+        // Idempotent: only act on a still-pending booking.
+        if (booking.status === "pending") {
+          const { error: updateError } = await admin
+            .from("bookings")
+            .update({
+              status: "confirmed",
+              stripe_session_id: session.id,
+              stripe_payment_id: session.payment_intent as string,
+            })
+            .eq("id", bookingId);
 
-          if (!booking) {
-            console.error(`Booking ${bookingId} not found`);
-            return new Response(JSON.stringify({ received: true }), {
-              status: 200,
-              headers: { ...corsHeaders, "Content-Type": "application/json" },
-            });
-          }
+          if (updateError) throw updateError;
 
-          // Only update if booking is still pending
-          if (booking.status === "pending") {
-            await updateBooking(
-              bookingId,
-              "confirmed",
-              session.id,
-              session.payment_intent as string
+          // Fire-and-forget the confirmation email; a mail failure must not
+          // fail the webhook (Stripe would retry and double-confirm).
+          try {
+            await fetch(
+              `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-booking-confirmation`,
+              {
+                method: "POST",
+                headers: {
+                  Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  "Content-Type": "application/json",
+                },
+                body: JSON.stringify({ booking_id: bookingId }),
+              },
             );
-
-            // TODO: Invoke send-booking-confirmation email function
-            // await invokeFunction("send-booking-confirmation", { booking_id: bookingId });
+          } catch (mailErr) {
+            console.error("Confirmation email failed:", mailErr);
           }
-        } catch (error) {
-          console.error("Error processing payment:", error);
-          // Don't fail the webhook, we log it for manual intervention
         }
+      } catch (error) {
+        // Log for manual reconciliation but don't 500 — a paid charge with a
+        // failed DB write needs a human, not an infinite Stripe retry loop.
+        console.error("Error processing payment:", error);
       }
     }
 
-    return new Response(JSON.stringify({ received: true }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ received: true });
   } catch (error) {
     console.error("Webhook error:", error);
-    return new Response(
-      JSON.stringify({ error: (error as Error).message }),
-      {
-        status: 500,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      }
-    );
+    return json({ error: (error as Error).message }, 500);
   }
 });

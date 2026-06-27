@@ -126,6 +126,23 @@ function greedyMatching(
     }
   }
 
+  // Place any diners the greedy pass left unmatched (odd counts, or everyone
+  // below the avgCompat threshold) so nobody who paid is dropped. Fill the
+  // smallest non-full group first; if every group is full, open a new one.
+  const leftovers = diners.filter((d) => !matched.has(d.id));
+  for (const diner of leftovers) {
+    const openGroup = groups
+      .filter((g) => g.user_ids.length < groupSize)
+      .sort((a, b) => a.user_ids.length - b.user_ids.length)[0];
+
+    if (openGroup) {
+      openGroup.user_ids.push(diner.id);
+    } else {
+      groups.push({ user_ids: [diner.id], score: 0 });
+    }
+    matched.add(diner.id);
+  }
+
   return groups;
 }
 

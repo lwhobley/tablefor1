@@ -63,9 +63,9 @@ export default function Checkout() {
   if (loading) {
     return (
       <Screen>
-        <View>
+        <View className="flex-1 items-center justify-center gap-4">
           <ActivityIndicator size="large" color="#C2410C" />
-          <Text>Preparing checkout...</Text>
+          <Text className="text-ink">Preparing checkout...</Text>
         </View>
       </Screen>
     );
@@ -74,23 +74,19 @@ export default function Checkout() {
   if (error || !checkoutUrl) {
     return (
       <Screen>
-        <View>
-          <Text>
-            Payment Error
-          </Text>
-          <Text>
+        <View className="flex-1 items-center justify-center gap-3 px-4">
+          <Text className="text-lg font-semibold text-ink">Payment Error</Text>
+          <Text className="mb-3 text-center text-ink/70">
             {error ?? "Could not create checkout session"}
           </Text>
-          <Button
-            label="Try Again"
-            onPress={() => router.back()}
-           
-          />
-          <Button
-            label="Back to Events"
-            variant="ghost"
-            onPress={() => router.push("/(tabs)/home")}
-          />
+          <View className="w-full gap-2">
+            <Button label="Try Again" onPress={() => router.back()} />
+            <Button
+              label="Back to Events"
+              variant="ghost"
+              onPress={() => router.push("/(tabs)/home")}
+            />
+          </View>
         </View>
       </Screen>
     );
@@ -98,30 +94,27 @@ export default function Checkout() {
 
   return (
     <Screen>
-      <View>
-        <View>
-          <Text>
+      <View className="flex-1 items-center justify-center gap-6 px-4">
+        <View className="w-full gap-4 rounded-2xl bg-white p-6">
+          <Text className="text-center font-serif text-2xl text-ink">
             Ready to book?
           </Text>
-          <Text>
+          <Text className="text-center text-ink/70">
             You're about to pay for your seat at this exclusive dinner. You'll
             be matched with other diners 24 hours before the event.
           </Text>
 
-          <Button
-            label="Proceed to Payment"
-            onPress={handleProceedToPayment}
-           
-          />
-
-          <Button
-            label="Cancel"
-            variant="secondary"
-            onPress={() => router.back()}
-          />
+          <View className="gap-2">
+            <Button label="Proceed to Payment" onPress={handleProceedToPayment} />
+            <Button
+              label="Cancel"
+              variant="secondary"
+              onPress={() => router.back()}
+            />
+          </View>
         </View>
 
-        <Text>
+        <Text className="text-center text-xs text-ink/50">
           Payments processed securely by Stripe
         </Text>
       </View>

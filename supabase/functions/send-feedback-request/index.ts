@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/init";
 import { corsHeaders } from "../_shared/cors.ts";
+import { getAuthUserEmail } from "../_shared/users.ts";
 
 function generateFeedbackRequestEmail(
   userName: string,
@@ -162,8 +163,15 @@ Deno.serve(async (req) => {
 
     const users = await usersResponse.json();
 
-    // Send emails to all matched users
+    // Send emails to all matched users. public.users has no email column, so
+    // each recipient address is resolved from auth.users.
     const emailPromises = users.map(async (user: any) => {
+      const toEmail = await getAuthUserEmail(user.id);
+      if (!toEmail) {
+        console.error(`No email for user ${user.id}, skipping`);
+        return null;
+      }
+
       const htmlContent = generateFeedbackRequestEmail(
         user.name,
         match_id,
@@ -178,7 +186,7 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({
           from: adminEmail,
-          to: user.email || "user@example.com",
+          to: toEmail,
           subject: "How was your dinner at Table for One?",
           html: htmlContent,
         }),
@@ -186,13 +194,14 @@ Deno.serve(async (req) => {
     });
 
     const results = await Promise.all(emailPromises);
+    const sent = results.filter((r) => r && r.ok).length;
 
-    if (!results.every((r) => r.ok)) {
+    if (sent < users.length) {
       console.error("Some feedback request emails failed");
     }
 
     return new Response(
-      JSON.stringify({ success: true, sent: results.filter((r) => r.ok).length }),
+      JSON.stringify({ success: true, sent }),
       {
         status: 200,
         headers: { ...corsHeaders, "Content-Type": "application/json" },

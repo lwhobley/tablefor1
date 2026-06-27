@@ -1,111 +1,88 @@
-import "jsr:@supabase/functions-js/init";
-import { corsHeaders } from "../_shared/cors.ts";
-import Stripe from "stripe";
+// Creates a Stripe Checkout Session for a pending booking and returns the
+// hosted-checkout URL. The caller is verified to own the booking (the
+// service-role reads below bypass RLS, so we re-check ownership explicitly),
+// and the line item is priced from the event row so the amount can't be
+// tampered with client-side.
 
-const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY") || "");
+import Stripe from "https://esm.sh/stripe@14";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { corsHeaders, preflight } from "../_shared/cors.ts";
 
 Deno.serve(async (req) => {
-  if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
-  }
+  const pre = preflight(req);
+  if (pre) return pre;
+
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
   try {
     const { booking_id, event_id } = await req.json();
-
     if (!booking_id || !event_id) {
-      return new Response(JSON.stringify({ error: "Missing fields" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Missing fields" }, 400);
     }
 
-    // Get the supabase client with service role
-    const supabaseClient = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (!supabaseClient) {
-      throw new Error("SUPABASE_SERVICE_ROLE_KEY not set");
+    // Verify the caller and resolve their user id from the JWT.
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const userClient = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: userData } = await userClient.auth.getUser();
+    const callerId = userData.user?.id;
+    if (!callerId) {
+      return json({ error: "Not authenticated" }, 401);
     }
 
-    // Fetch booking details
-    const bookingResponse = await fetch(
-      `${Deno.env.get("SUPABASE_URL")}/rest/v1/bookings?id=eq.${booking_id}&select=*`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${supabaseClient}`,
-          apikey: supabaseClient,
-        },
-      }
+    const admin = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    if (!bookingResponse.ok) {
-      throw new Error("Failed to fetch booking");
+    const { data: booking } = await admin
+      .from("bookings")
+      .select("id, user_id, status, amount_cents")
+      .eq("id", booking_id)
+      .maybeSingle();
+
+    if (!booking) {
+      return json({ error: "Booking not found" }, 404);
     }
-
-    const bookings = await bookingResponse.json();
-    if (!Array.isArray(bookings) || bookings.length === 0) {
-      return new Response(JSON.stringify({ error: "Booking not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    // Ownership check: the service-role read above bypassed RLS.
+    if (booking.user_id !== callerId) {
+      return json({ error: "Forbidden" }, 403);
     }
-
-    const booking = bookings[0];
-
-    // Fetch event details
-    const eventResponse = await fetch(
-      `${Deno.env.get("SUPABASE_URL")}/rest/v1/events?id=eq.${event_id}&select=*`,
-      {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${supabaseClient}`,
-          apikey: supabaseClient,
-        },
-      }
-    );
-
-    if (!eventResponse.ok) {
-      throw new Error("Failed to fetch event");
-    }
-
-    const events = await eventResponse.json();
-    if (!Array.isArray(events) || events.length === 0) {
-      return new Response(JSON.stringify({ error: "Event not found" }), {
-        status: 404,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const event = events[0];
-
-    // Verify booking status is still pending
     if (booking.status !== "pending") {
-      return new Response(
-        JSON.stringify({ error: "Booking already processed" }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
-      );
+      return json({ error: "Booking already processed" }, 400);
     }
 
-    // Verify event is open
+    const { data: event } = await admin
+      .from("events")
+      .select(
+        "id, status, event_date, format, price_cents, restaurant:restaurants(name)",
+      )
+      .eq("id", event_id)
+      .maybeSingle();
+
+    if (!event) {
+      return json({ error: "Event not found" }, 404);
+    }
     if (!["open", "matched", "full"].includes(event.status)) {
-      return new Response(JSON.stringify({ error: "Event not available" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      return json({ error: "Event not available" }, 400);
     }
 
-    // Fetch user email from auth
-    const auth = req.headers.get("authorization");
-    if (!auth) {
-      return new Response(JSON.stringify({ error: "Not authenticated" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
+    const restaurantName =
+      (event.restaurant as { name?: string } | null)?.name ??
+      "an exclusive venue";
 
-    // Create Stripe checkout session
+    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
+      apiVersion: "2024-04-10",
+    });
+
+    const appUrl = Deno.env.get("APP_URL") || "http://localhost:8081";
     const session = await stripe.checkout.sessions.create({
       mode: "payment",
       payment_method_types: ["card"],
@@ -114,32 +91,25 @@ Deno.serve(async (req) => {
           price_data: {
             currency: "usd",
             product_data: {
-              name: `Dinner at ${event.restaurant_id || "exclusive venue"}`,
-              description: `${event.format} on ${new Date(event.event_date).toDateString()}`,
+              name: `Dinner at ${restaurantName}`,
+              description: `${event.format} on ${new Date(
+                event.event_date,
+              ).toDateString()}`,
             },
+            // Price from the event row, never the client.
             unit_amount: event.price_cents,
           },
           quantity: 1,
         },
       ],
-      success_url: `${Deno.env.get("APP_URL") || "http://localhost:8081"}/bookings/${event_id}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${Deno.env.get("APP_URL") || "http://localhost:8081"}/events/${event_id}`,
-      metadata: {
-        booking_id,
-        event_id,
-        user_id: booking.user_id,
-      },
+      success_url: `${appUrl}/bookings/${event_id}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/events/${event_id}`,
+      metadata: { booking_id, event_id, user_id: booking.user_id },
     });
 
-    return new Response(JSON.stringify({ url: session.url }), {
-      status: 200,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ url: session.url });
   } catch (error) {
-    console.error("Error:", error);
-    return new Response(JSON.stringify({ error: (error as Error).message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    console.error("create-checkout-session error:", error);
+    return json({ error: (error as Error).message }, 500);
   }
 });

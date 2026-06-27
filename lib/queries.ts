@@ -158,7 +158,27 @@ export function useCreateBooking(userId: string | undefined) {
         })
         .select()
         .single();
-      if (error) throw error;
+      if (error) {
+        // 23505 = unique (event_id, user_id) violation: the user already has a
+        // booking for this event. Reuse a still-pending one so an abandoned
+        // checkout can be resumed instead of dead-ending.
+        if (error.code === "23505") {
+          const { data: existing, error: fetchErr } = await supabase
+            .from("bookings")
+            .select("*")
+            .eq("event_id", eventId)
+            .eq("user_id", userId)
+            .maybeSingle();
+          if (fetchErr) throw fetchErr;
+          if (existing?.status === "pending") return existing as Booking;
+          throw new Error(
+            existing?.status === "confirmed"
+              ? "You've already booked this event."
+              : "This booking can no longer be reopened.",
+          );
+        }
+        throw error;
+      }
       return data as Booking;
     },
     onSuccess: () => {
@@ -223,7 +243,7 @@ export function useMyMatches(userId: string | undefined) {
           return {
             ...match,
             diners: (diners ?? []) as Profile[],
-            event: event as EventWithRestaurant,
+            event: event as unknown as EventWithRestaurant,
           };
         })
       );
@@ -268,7 +288,7 @@ export function useMatchDetail(matchId: string | undefined) {
       return {
         ...match,
         diners: (diners ?? []) as Profile[],
-        event: event as EventWithRestaurant,
+        event: event as unknown as EventWithRestaurant,
       } as MatchDetail;
     },
   });
@@ -296,12 +316,12 @@ export function useMatchMessages(matchId: string | undefined) {
 export function useSubscribeToMessages(matchId: string | undefined) {
   const qc = useQueryClient();
 
-  // Set up real-time subscription
+  // Set up real-time subscription (supabase-js v2 channel API).
   React.useEffect(() => {
     if (!matchId) return;
 
-    const subscription = supabase
-      .from(`messages:match_id=eq.${matchId}`)
+    const channel = supabase
+      .channel(`messages:${matchId}`)
       .on(
         "postgres_changes",
         {
@@ -317,7 +337,7 @@ export function useSubscribeToMessages(matchId: string | undefined) {
       .subscribe();
 
     return () => {
-      subscription.unsubscribe();
+      supabase.removeChannel(channel);
     };
   }, [matchId, qc]);
 }
