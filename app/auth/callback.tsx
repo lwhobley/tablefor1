@@ -12,41 +12,52 @@ export default function AuthCallback() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Check for an error in the redirect URL (e.g. expired link).
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const urlError = params.get("error_description") ?? params.get("error");
-      if (urlError) {
-        setError(urlError);
-        return;
-      }
+    if (typeof window === "undefined") return;
+
+    // Check query string and hash fragment for errors Supabase may embed.
+    const searchParams = new URLSearchParams(window.location.search);
+    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+    const urlError =
+      searchParams.get("error_description") ??
+      hashParams.get("error_description") ??
+      searchParams.get("error") ??
+      hashParams.get("error");
+    if (urlError) {
+      setError(decodeURIComponent(urlError));
+      return;
     }
 
-    // With PKCE flow the magic link carries a ?code= that must be exchanged
-    // for a session. detectSessionInUrl handles the exchange asynchronously
-    // and fires onAuthStateChange with SIGNED_IN when it completes.
-    // Calling getSession() immediately returns null (exchange not done yet),
-    // so we wait for the auth state event instead.
+    // Whether the URL contains a PKCE code to exchange.
+    const hasCode = !!searchParams.get("code");
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (event === "SIGNED_IN" && session) {
           router.replace("/(tabs)/home");
-        } else if (event === "INITIAL_SESSION") {
-          // Already have a session (e.g. user re-visits callback while logged in)
-          if (session) router.replace("/(tabs)/home");
+          return;
+        }
+        // INITIAL_SESSION fires synchronously on subscription — if there's
+        // already a live session (e.g. user revisits callback), go home.
+        if (event === "INITIAL_SESSION" && session) {
+          router.replace("/(tabs)/home");
+          return;
+        }
+        // Supabase fires SIGNED_OUT when exchangeCodeForSession fails
+        // (expired code, PKCE verifier mismatch, already used, etc.).
+        if (event === "SIGNED_OUT" && hasCode) {
+          setError("Link expired or already used. Request a new one.");
         }
       }
     );
 
-    // Timeout fallback: if nothing fires in 8s, the link may have expired
-    const timer = setTimeout(() => {
-      setError("Link expired or already used. Request a new one.");
-    }, 8000);
+    // Final fallback — if Supabase emits nothing within 10 s something is
+    // wrong (e.g. network error during exchange).
+    const timer = setTimeout(
+      () => setError("Sign-in timed out. Please try again."),
+      10000,
+    );
 
-    return () => {
-      subscription.unsubscribe();
-      clearTimeout(timer);
-    };
+    return () => { subscription.unsubscribe(); clearTimeout(timer); };
   }, [router]);
 
   return (
