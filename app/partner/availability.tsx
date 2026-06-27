@@ -124,7 +124,7 @@ export default function PartnerAvailability() {
             Nothing submitted yet.
           </Text>
         ) : (
-          (slots ?? []).map((slot) => {
+          (slots ?? []).map((slot: any) => {
             const when = new Date(slot.proposed_date).toLocaleString(undefined, {
               weekday: "short",
               month: "short",

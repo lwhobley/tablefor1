@@ -63,9 +63,9 @@ export default function Checkout() {
   if (loading) {
     return (
       <Screen>
-        <View className="flex-1 items-center justify-center">
+        <View>
           <ActivityIndicator size="large" color="#C2410C" />
-          <Text className="mt-4 text-ink">Preparing checkout...</Text>
+          <Text>Preparing checkout...</Text>
         </View>
       </Screen>
     );
@@ -74,20 +74,20 @@ export default function Checkout() {
   if (error || !checkoutUrl) {
     return (
       <Screen>
-        <View className="flex-1 items-center justify-center px-4">
-          <Text className="text-lg font-semibold text-ink mb-2">
+        <View>
+          <Text>
             Payment Error
           </Text>
-          <Text className="text-ink/70 mb-6 text-center">
+          <Text>
             {error ?? "Could not create checkout session"}
           </Text>
           <Button
-            title="Try Again"
+            label="Try Again"
             onPress={() => router.back()}
-            className="mb-2"
+           
           />
           <Button
-            title="Back to Events"
+            label="Back to Events"
             variant="ghost"
             onPress={() => router.push("/(tabs)/home")}
           />
@@ -98,30 +98,30 @@ export default function Checkout() {
 
   return (
     <Screen>
-      <View className="flex-1 items-center justify-center px-4">
-        <View className="mb-8 bg-cream p-6 rounded-lg">
-          <Text className="text-center font-serif text-2xl text-ink mb-4">
+      <View>
+        <View>
+          <Text>
             Ready to book?
           </Text>
-          <Text className="text-center text-ink/70 mb-6">
+          <Text>
             You're about to pay for your seat at this exclusive dinner. You'll
             be matched with other diners 24 hours before the event.
           </Text>
 
           <Button
-            title="Proceed to Payment"
+            label="Proceed to Payment"
             onPress={handleProceedToPayment}
-            className="mb-3"
+           
           />
 
           <Button
-            title="Cancel"
+            label="Cancel"
             variant="secondary"
             onPress={() => router.back()}
           />
         </View>
 
-        <Text className="text-xs text-ink/50 text-center">
+        <Text>
           Payments processed securely by Stripe
         </Text>
       </View>

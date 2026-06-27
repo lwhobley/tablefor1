@@ -51,7 +51,7 @@ export default function EventDetail() {
   if (isLoading) {
     return (
       <Screen>
-        <View className="flex-1 items-center justify-center">
+        <View>
           <ActivityIndicator size="large" color="#C2410C" />
         </View>
       </Screen>
@@ -61,13 +61,12 @@ export default function EventDetail() {
   if (error || !event) {
     return (
       <Screen>
-        <View className="flex-1 items-center justify-center">
-          <Text className="text-lg text-ink">Event not found</Text>
+        <View>
+          <Text>Event not found</Text>
           <Button
-            title="Back"
+            label="Back"
             variant="secondary"
             onPress={() => router.back()}
-            style={{ marginTop: 16 }}
           />
         </View>
       </Screen>
@@ -89,63 +88,63 @@ export default function EventDetail() {
 
   return (
     <Screen>
-      <ScrollView className="flex-1 px-4 py-6">
+      <ScrollView>
         {/* Restaurant header */}
-        <View className="mb-8">
-          <Text className="text-4xl font-bold text-ink mb-2">
+        <View>
+          <Text>
             {event.restaurant?.name}
           </Text>
-          <View className="flex-row items-center gap-2 mb-2">
+          <View>
             <Ionicons name="location-outline" size={18} color="#8C7F73" />
-            <Text className="text-ink/70">
+            <Text>
               {event.restaurant?.neighborhood}
             </Text>
           </View>
           {event.restaurant?.cuisine && event.restaurant.cuisine.length > 0 && (
-            <Text className="text-ink/70">
+            <Text>
               {event.restaurant.cuisine.join(", ")}
             </Text>
           )}
         </View>
 
         {/* Event details grid */}
-        <View className="mb-8 bg-cream p-4 rounded-lg">
-          <View className="flex-row justify-between mb-4">
+        <View>
+          <View>
             <View>
-              <Text className="text-ink/60 text-sm font-medium mb-1">Date</Text>
-              <Text className="text-ink font-semibold">{formattedDate}</Text>
+              <Text>Date</Text>
+              <Text>{formattedDate}</Text>
             </View>
             <View>
-              <Text className="text-ink/60 text-sm font-medium mb-1">Time</Text>
-              <Text className="text-ink font-semibold">{formattedTime}</Text>
+              <Text>Time</Text>
+              <Text>{formattedTime}</Text>
             </View>
             <View>
-              <Text className="text-ink/60 text-sm font-medium mb-1">
+              <Text>
                 Format
               </Text>
-              <Text className="text-ink font-semibold capitalize">
+              <Text>
                 {event.format}
               </Text>
             </View>
           </View>
 
-          <View className="flex-row justify-between border-t border-ink/15 pt-4">
+          <View>
             <View>
-              <Text className="text-ink/60 text-sm font-medium mb-1">
+              <Text>
                 Group Size
               </Text>
-              <Text className="text-ink font-semibold">
+              <Text>
                 {event.group_size} people
               </Text>
             </View>
             <View>
-              <Text className="text-ink/60 text-sm font-medium mb-1">Price</Text>
-              <Text className="text-ink font-semibold">
+              <Text>Price</Text>
+              <Text>
                 ${(event.price_cents / 100).toFixed(2)}
               </Text>
             </View>
             <View>
-              <Text className="text-ink/60 text-sm font-medium mb-1">
+              <Text>
                 Spots Left
               </Text>
               <Text
@@ -161,8 +160,8 @@ export default function EventDetail() {
 
         {/* Status badge */}
         {event.confirmed_covers > 0 && (
-          <View className="mb-6 bg-sage/10 px-4 py-3 rounded-lg border border-sage/30">
-            <Text className="text-sage font-medium">
+          <View>
+            <Text>
               {event.confirmed_covers} diner{event.confirmed_covers !== 1 ? "s" : ""} already booked
             </Text>
           </View>
@@ -170,40 +169,40 @@ export default function EventDetail() {
 
         {/* Description */}
         {event.description && (
-          <View className="mb-8">
-            <Text className="text-lg font-bold text-ink mb-2">About</Text>
-            <Text className="text-ink/70 leading-6">{event.description}</Text>
+          <View>
+            <Text>About</Text>
+            <Text>{event.description}</Text>
           </View>
         )}
 
         {/* Info section */}
-        <View className="mb-8 bg-clay/5 p-4 rounded-lg border border-clay/20">
-          <Text className="text-ink font-semibold mb-2">How it works</Text>
-          <Text className="text-sm text-ink/70 mb-2">
+        <View>
+          <Text>How it works</Text>
+          <Text>
             • Book your spot for this exclusive dinner
           </Text>
-          <Text className="text-sm text-ink/70 mb-2">
+          <Text>
             • Get matched with other solo diners 24 hours before
           </Text>
-          <Text className="text-sm text-ink/70">
+          <Text>
             • Enjoy dinner with your carefully matched group
           </Text>
         </View>
 
         {/* Book button */}
-        <View className="mb-8">
+        <View>
           <Button
-            title={isFull ? "Event Full" : "Book Now"}
+            label={isFull ? "Event Full" : "Book Now"}
             disabled={isFull || createBooking.isPending}
             loading={createBooking.isPending}
             onPress={handleBook}
-            className="py-4"
+           
           />
           <Button
-            title="Back"
+            label="Back"
             variant="ghost"
             onPress={() => router.back()}
-            className="mt-2 py-4"
+           
           />
         </View>
       </ScrollView>

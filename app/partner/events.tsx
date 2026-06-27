@@ -83,7 +83,7 @@ export default function PartnerEvents() {
         </View>
       ) : (
         <View className="gap-3">
-          {(events ?? []).map((e) => (
+          {(events ?? []).map((e: any) => (
             <EventRow key={e.event_id} event={e} />
           ))}
         </View>
