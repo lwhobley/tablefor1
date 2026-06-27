@@ -12,22 +12,40 @@ export default function AuthCallback() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase.auth.getSession();
-      if (cancelled) return;
-      if (error) {
-        setError(error.message);
+    // Check for an error in the redirect URL (e.g. expired link).
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const urlError = params.get("error_description") ?? params.get("error");
+      if (urlError) {
+        setError(urlError);
         return;
       }
-      if (data.session) {
-        router.replace("/(tabs)/home");
-      } else {
-        router.replace("/(auth)/login");
+    }
+
+    // With PKCE flow the magic link carries a ?code= that must be exchanged
+    // for a session. detectSessionInUrl handles the exchange asynchronously
+    // and fires onAuthStateChange with SIGNED_IN when it completes.
+    // Calling getSession() immediately returns null (exchange not done yet),
+    // so we wait for the auth state event instead.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        if (event === "SIGNED_IN" && session) {
+          router.replace("/(tabs)/home");
+        } else if (event === "INITIAL_SESSION") {
+          // Already have a session (e.g. user re-visits callback while logged in)
+          if (session) router.replace("/(tabs)/home");
+        }
       }
-    })();
+    );
+
+    // Timeout fallback: if nothing fires in 8s, the link may have expired
+    const timer = setTimeout(() => {
+      setError("Link expired or already used. Request a new one.");
+    }, 8000);
+
     return () => {
-      cancelled = true;
+      subscription.unsubscribe();
+      clearTimeout(timer);
     };
   }, [router]);
 
