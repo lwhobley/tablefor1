@@ -1,5 +1,4 @@
-import "jsr:@supabase/functions-js/init";
-import { corsHeaders } from "../_shared/cors.ts";
+import { corsHeaders } from "./_shared/cors.ts";
 
 type Diner = {
   id: string;

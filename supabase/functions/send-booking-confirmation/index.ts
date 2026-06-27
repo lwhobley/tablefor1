@@ -2,8 +2,8 @@
 // Invoked by stripe-webhook with { booking_id }.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/cors.ts";
-import { getAuthUserEmail } from "../_shared/users.ts";
+import { corsHeaders } from "./_shared/cors.ts";
+import { getAuthUserEmail } from "./_shared/users.ts";
 
 function bookingConfirmationHtml(
   userName: string,

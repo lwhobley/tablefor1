@@ -1,6 +1,5 @@
-import "jsr:@supabase/functions-js/init";
-import { corsHeaders } from "../_shared/cors.ts";
-import { getAuthUserEmail } from "../_shared/users.ts";
+import { corsHeaders } from "./_shared/cors.ts";
+import { getAuthUserEmail } from "./_shared/users.ts";
 
 async function generateMatchRevealEmail(
   userName: string,
