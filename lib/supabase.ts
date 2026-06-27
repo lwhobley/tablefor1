@@ -77,3 +77,60 @@ export type EventRow = {
   city: string;
   description: string | null;
 };
+
+export type BookingStatus = "pending" | "confirmed" | "cancelled" | "refunded";
+
+export type Booking = {
+  id: string;
+  event_id: string;
+  user_id: string;
+  status: BookingStatus;
+  stripe_session_id: string | null;
+  stripe_payment_id: string | null;
+  amount_cents: number;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Restaurant = {
+  id: string;
+  name: string;
+  neighborhood: string;
+  city: string;
+  address: string;
+  cuisine: string[];
+  capacity: number;
+  stripe_account: string | null;
+  partner_email: string | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export type Match = {
+  id: string;
+  event_id: string;
+  user_ids: string[];
+  score: number | null;
+  revealed_at: string | null;
+  created_at: string;
+};
+
+export type Message = {
+  id: string;
+  match_id: string;
+  sender_id: string;
+  body: string;
+  created_at: string;
+};
+
+export type Feedback = {
+  id: string;
+  match_id: string;
+  reviewer_id: string;
+  rating: "1" | "2" | "3" | "4" | "5";
+  showed_up: boolean;
+  reconnect: boolean;
+  notes: string | null;
+  created_at: string;
+};

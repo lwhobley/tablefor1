@@ -1,9 +1,11 @@
-import { ActivityIndicator, FlatList, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
+import { useRouter } from "expo-router";
 import { Screen } from "../../components/Screen";
 import { useAuth } from "../../lib/auth";
 import { useProfile, useUpcomingEvents, type EventWithRestaurant } from "../../lib/queries";
 
 function EventCard({ event }: { event: EventWithRestaurant }) {
+  const router = useRouter();
   const date = new Date(event.event_date);
   const dateLabel = date.toLocaleDateString(undefined, {
     weekday: "short",
@@ -15,7 +17,10 @@ function EventCard({ event }: { event: EventWithRestaurant }) {
     minute: "2-digit",
   });
   return (
-    <View className="gap-2 rounded-2xl border border-ink/10 bg-white p-5">
+    <Pressable
+      onPress={() => router.push(`/events/${event.id}`)}
+      className="gap-2 rounded-2xl border border-ink/10 bg-white p-5 active:bg-cream"
+    >
       <Text className="text-xs uppercase tracking-widest text-rust">
         {event.format.replace("_", " ")}
       </Text>
@@ -31,7 +36,7 @@ function EventCard({ event }: { event: EventWithRestaurant }) {
       <Text className="mt-1 text-sm text-ink/60">
         ${(event.price_cents / 100).toFixed(0)} per seat
       </Text>
-    </View>
+    </Pressable>
   );
 }
 
