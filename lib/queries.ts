@@ -49,7 +49,6 @@ export function useUpdateProfile(userId: string | undefined) {
 
 export type EventWithRestaurant = EventRow & {
   restaurant: { name: string; neighborhood: string; cuisine: string[] } | null;
-  spots_left: number | null;
 };
 
 export function useUpcomingEvents(city: string | null | undefined) {
@@ -103,8 +102,13 @@ export function useEventDetails(eventId: string | undefined) {
         .eq("status", "confirmed");
       if (countError) throw countError;
 
+      const eventWithRestaurant = event as unknown as EventWithRestaurant;
+      const restaurant = eventWithRestaurant.restaurant;
+      if (!restaurant) throw new Error("Event is missing its restaurant");
+
       return {
-        ...(event as unknown as EventWithRestaurant),
+        ...eventWithRestaurant,
+        restaurant,
         confirmed_covers: count ?? 0,
       } as EventDetail;
     },

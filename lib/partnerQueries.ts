@@ -1,18 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { supabase, type EventFormat, type EventStatus } from "./supabase";
-
-export type Restaurant = {
-  id: string;
-  name: string;
-  neighborhood: string;
-  city: string;
-  address: string;
-  cuisine: string[];
-  capacity: number;
-  stripe_account: string | null;
-  partner_email: string | null;
-  is_active: boolean;
-};
+import {
+  supabase,
+  type EventFormat,
+  type EventStatus,
+  type Restaurant,
+} from "./supabase";
 
 export type PartnerEvent = {
   event_id: string;

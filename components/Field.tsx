@@ -7,6 +7,7 @@ export function Field({
   placeholder,
   autoCapitalize = "sentences",
   keyboardType = "default",
+  secureTextEntry,
 }: {
   label: string;
   value: string;
@@ -14,6 +15,7 @@ export function Field({
   placeholder?: string;
   autoCapitalize?: "none" | "sentences" | "words" | "characters";
   keyboardType?: "default" | "email-address";
+  secureTextEntry?: boolean;
 }) {
   return (
     <View className="gap-2">
@@ -25,6 +27,7 @@ export function Field({
         placeholderTextColor="#A89888"
         autoCapitalize={autoCapitalize}
         keyboardType={keyboardType}
+        secureTextEntry={secureTextEntry}
         className="h-12 rounded-2xl border border-ink/10 bg-white px-4 text-base text-ink"
       />
     </View>

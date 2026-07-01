@@ -42,6 +42,8 @@
   "devDependencies": {
     "@babel/core": "^7.25.2",
     "@types/react": "~18.2.79",
+    "eslint": "^8.57.0",
+    "eslint-config-expo": "~7.1.2",
     "react-native-worklets": "file:stubs/react-native-worklets",
     "tailwindcss": "^3.4.10",
     "typescript": "~5.3.3"
