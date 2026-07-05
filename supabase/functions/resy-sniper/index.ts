@@ -1,9 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, preflight } from "../_shared/cors.ts";
+import { isAuthorizedAdminCaller, unauthorizedResponse } from "../_shared/admin.ts";
 
 Deno.serve(async (req) => {
   const pre = preflight(req);
   if (pre) return pre;
+
+  if (!isAuthorizedAdminCaller(req)) return unauthorizedResponse(corsHeaders);
 
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL")!,

@@ -1,9 +1,11 @@
-import { corsHeaders } from "./_shared/cors.ts";
+import { corsHeaders } from "../_shared/cors.ts";
+import { isAuthorizedAdminCaller, unauthorizedResponse } from "../_shared/admin.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+  if (!isAuthorizedAdminCaller(req)) return unauthorizedResponse(corsHeaders);
 
   try {
     const { event_id } = await req.json();
@@ -42,13 +44,17 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Update all matches to set revealed_at = now()
+    // Update all matches to set revealed_at = now(), and remember which ones
+    // were newly revealed (as opposed to an already-revealed match returned
+    // again by a retry) so we only email diners once.
     const now = new Date().toISOString();
+    const newlyRevealed: string[] = [];
     const updatePromises = matches.map((match: any) => {
       if (match.revealed_at) {
         // Already revealed, skip
         return Promise.resolve(null);
       }
+      newlyRevealed.push(match.id);
 
       return fetch(`${supabaseUrl}/rest/v1/matches?id=eq.${match.id}`, {
         method: "PATCH",
@@ -64,8 +70,23 @@ Deno.serve(async (req) => {
     const results = await Promise.all(updatePromises);
     const successful = results.filter((r) => r && r.ok).length;
 
-    // TODO: Invoke send-match-revealed edge function for each match
-    // This would send emails to all matched diners
+    // Fire the reveal email for each newly-revealed match. Fire-and-forget:
+    // an email failure shouldn't fail the reveal itself, since the match
+    // rows are already committed above.
+    await Promise.all(
+      newlyRevealed.map((matchId) =>
+        fetch(`${supabaseUrl}/functions/v1/send-match-revealed`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${supabaseServiceKey}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ match_id: matchId }),
+        }).catch((err) =>
+          console.error(`send-match-revealed failed for match ${matchId}:`, err),
+        ),
+      ),
+    );
 
     return new Response(
       JSON.stringify({

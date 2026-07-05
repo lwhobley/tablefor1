@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Image, Pressable, Text, View, TextInput, Alert } from "react-native";
+import { Image, Linking, Pressable, Text, View, TextInput, Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { Screen } from "../../components/Screen";
@@ -310,16 +310,26 @@ export default function ProfileScreen() {
               </View>
 
               <Button
-                label={subscribePremium.isPending ? "Upgrading..." : "Upgrade to Premium ($9.99/mo)"}
+                label={subscribePremium.isPending ? "Redirecting to checkout..." : "Upgrade to Premium ($9.99/mo)"}
                 variant="primary"
                 loading={subscribePremium.isPending}
                 onPress={() => {
                   subscribePremium.mutate(undefined, {
-                    onSuccess: () => Alert.alert("Welcome to Premium!", "You now have access to early bookings and premium seating options!"),
-                    onError: (err) => Alert.alert("Failed to subscribe", err.message),
+                    onSuccess: async (url) => {
+                      const supported = await Linking.canOpenURL(url);
+                      if (supported) {
+                        await Linking.openURL(url);
+                      } else {
+                        Alert.alert("Cannot open Stripe Checkout");
+                      }
+                    },
+                    onError: (err) => Alert.alert("Failed to start checkout", err.message),
                   });
                 }}
               />
+              <Text className="text-center text-xs text-ink/50">
+                You'll be redirected to Stripe to complete payment securely.
+              </Text>
             </View>
           )
         )}

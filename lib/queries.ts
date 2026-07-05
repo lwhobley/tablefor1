@@ -69,19 +69,12 @@ export function useUpcomingEvents(city: string | null | undefined) {
   return useQuery({
     queryKey: ["events", city ?? "_all"],
     queryFn: async () => {
-      const q = supabase
-        .from("events")
-        .select(
-          `id, restaurant_id, format, status, event_date, group_size,
-           price_cents, city, description, is_mystery, reveal_hours_before,
-           restaurant:restaurants(name, neighborhood, cuisine)`,
-        )
-        .gte("event_date", new Date().toISOString())
-        .in("status", ["open", "matched", "full"])
-        .order("event_date", { ascending: true })
-        .limit(20);
-      if (city) q.eq("city", city);
-      const { data, error } = await q;
+      // get_upcoming_events masks the restaurant embed server-side for
+      // unrevealed mystery dinners — the anon/authenticated key can no
+      // longer read a mystery restaurant's identity directly.
+      const { data, error } = await supabase.rpc("get_upcoming_events", {
+        p_city: city ?? null,
+      });
       if (error) throw error;
       return (data ?? []) as unknown as EventWithRestaurant[];
     },
@@ -98,28 +91,15 @@ export function useEventDetails(eventId: string | undefined) {
     queryKey: ["event", eventId],
     enabled: !!eventId,
     queryFn: async () => {
-      const { data: event, error: eventError } = await supabase
-        .from("events")
-        .select(
-          `id, restaurant_id, format, status, event_date, group_size,
-           price_cents, city, description, is_mystery, reveal_hours_before,
-           restaurant:restaurants(*)`,
-        )
-        .eq("id", eventId!)
-        .single();
-      if (eventError) throw eventError;
-
-      const { count, error: countError } = await supabase
-        .from("bookings")
-        .select("*", { count: "exact", head: true })
-        .eq("event_id", eventId!)
-        .eq("status", "confirmed");
-      if (countError) throw countError;
-
-      return {
-        ...(event as unknown as EventWithRestaurant),
-        confirmed_covers: count ?? 0,
-      } as EventDetail;
+      // get_event_detail masks the restaurant embed the same way
+      // get_upcoming_events does, and computes confirmed_covers in one
+      // round trip instead of two.
+      const { data, error } = await supabase
+        .rpc("get_event_detail", { p_event_id: eventId! })
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("Event not found");
+      return data as unknown as EventDetail;
     },
   });
 }
@@ -239,39 +219,11 @@ export function useMyMatches(userId: string | undefined) {
     queryKey: ["matches", userId],
     enabled: !!userId,
     queryFn: async () => {
-      const { data: matches, error: matchError } = await supabase
-        .from("matches")
-        .select("*")
-        .contains("user_ids", [userId!])
-        .order("revealed_at", { ascending: false, nullsFirst: false });
-      if (matchError) throw matchError;
-
-      const enrichedMatches = await Promise.all(
-        (matches ?? []).map(async (match) => {
-          const { data: diners } = await supabase
-            .from("users")
-            .select("*")
-            .in("id", match.user_ids);
-
-          const { data: event } = await supabase
-            .from("events")
-            .select(
-              `id, restaurant_id, format, status, event_date, group_size,
-               price_cents, city, description, is_mystery, reveal_hours_before,
-               restaurant:restaurants(name, neighborhood, cuisine)`
-            )
-            .eq("id", match.event_id)
-            .single();
-
-          return {
-            ...match,
-            diners: (diners ?? []) as Profile[],
-            event: event as unknown as EventWithRestaurant,
-          };
-        })
-      );
-
-      return enrichedMatches as MatchWithDiners[];
+      // Single round trip via get_my_matches() instead of the list query
+      // plus a Promise.all of two queries per match (diners + event).
+      const { data, error } = await supabase.rpc("get_my_matches");
+      if (error) throw error;
+      return (data ?? []) as unknown as MatchWithDiners[];
     },
   });
 }
@@ -286,33 +238,12 @@ export function useMatchDetail(matchId: string | undefined) {
     queryKey: ["match", matchId],
     enabled: !!matchId,
     queryFn: async () => {
-      const { data: match, error: matchError } = await supabase
-        .from("matches")
-        .select("*")
-        .eq("id", matchId!)
-        .single();
-      if (matchError) throw matchError;
-
-      const { data: diners } = await supabase
-        .from("users")
-        .select("*")
-        .in("id", match.user_ids);
-
-      const { data: event } = await supabase
-        .from("events")
-        .select(
-          `id, restaurant_id, format, status, event_date, group_size,
-           price_cents, city, description, is_mystery, reveal_hours_before,
-           restaurant:restaurants(name, neighborhood, cuisine)`
-        )
-        .eq("id", match.event_id)
-        .single();
-
-      return {
-        ...match,
-        diners: (diners ?? []) as Profile[],
-        event: event as unknown as EventWithRestaurant,
-      } as MatchDetail;
+      const { data, error } = await supabase
+        .rpc("get_match_detail", { p_match_id: matchId! })
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) throw new Error("Match not found");
+      return data as unknown as MatchDetail;
     },
   });
 }
@@ -546,15 +477,7 @@ export function useSendSpark(userId: string | undefined) {
   });
 }
 
-export function isMutualSpark(sparks: Spark[], userA: string, userB: string): boolean {
-  const aToB = sparks.find(
-    (s) => s.user_id === userA && s.target_user_id === userB && s.sparked,
-  );
-  const bToA = sparks.find(
-    (s) => s.user_id === userB && s.target_user_id === userA && s.sparked,
-  );
-  return !!(aToB && bToA);
-}
+export { isMutualSpark } from "./sparks";
 
 // ============================================================
 // STREAKS
@@ -592,6 +515,27 @@ export function useRestaurantMenu(restaurantId: string | undefined) {
         .order("sort_order", { ascending: true });
       if (error) throw error;
       return (data ?? []) as RestaurantMenuItem[];
+    },
+  });
+}
+
+// Finds the match (if any) this user belongs to for a given event, so
+// screens that only have an event/booking on hand (like the bookings tab)
+// can link to /matches/[matchId] or /feedback/[matchId] correctly instead
+// of passing a booking id where a match id is expected.
+export function useMyMatchForEvent(eventId: string | undefined, userId: string | undefined) {
+  return useQuery({
+    queryKey: ["my-match-for-event", eventId, userId],
+    enabled: !!eventId && !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("matches")
+        .select("id")
+        .eq("event_id", eventId!)
+        .contains("user_ids", [userId!])
+        .maybeSingle();
+      if (error) throw error;
+      return data?.id as string | undefined;
     },
   });
 }
@@ -651,8 +595,8 @@ export function useCheckIn(userId: string | undefined) {
         .select()
         .single();
       if (error) throw error;
-      await supabase.rpc("recalculate_trust_score", { p_user_id: userId });
-      await supabase.rpc("recalculate_streak", { p_user_id: userId });
+      await supabase.rpc("recalculate_trust_score");
+      await supabase.rpc("recalculate_streak");
       return data as Checkin;
     },
     onSuccess: (_, vars) => {
@@ -838,14 +782,22 @@ export function useVerifyInviteCode(inviteCode: string | undefined, eventId: str
     queryKey: ["verify-invite", inviteCode, eventId],
     enabled: !!inviteCode && !!eventId,
     queryFn: async () => {
+      // Scoped RPC rather than a direct table select — the table's RLS no
+      // longer allows reading arbitrary invite rows by code (that let any
+      // signed-in user enumerate every invite in the system).
       const { data, error } = await supabase
-        .from("plus_one_invites")
-        .select("*, sender:users!sender_id(name)")
-        .eq("invite_code", inviteCode!.toUpperCase().trim())
-        .eq("event_id", eventId!)
+        .rpc("lookup_plus_one_invite", {
+          p_invite_code: inviteCode!.toUpperCase().trim(),
+          p_event_id: eventId!,
+        })
         .maybeSingle();
       if (error) throw error;
-      return data as (PlusOneInvite & { sender: { name: string } | null }) | null;
+      if (!data) return null;
+      const row = data as PlusOneInvite & { sender_name: string | null };
+      return {
+        ...row,
+        sender: row.sender_name ? { name: row.sender_name } : null,
+      } as PlusOneInvite & { sender: { name: string } | null };
     },
   });
 }
@@ -901,26 +853,12 @@ export function useExpansionCities(userId: string | undefined) {
   return useQuery({
     queryKey: ["expansion-cities", userId],
     queryFn: async () => {
-      const { data: cities, error: citiesErr } = await supabase
-        .from("expansion_cities")
-        .select("*")
-        .order("city", { ascending: true });
-      if (citiesErr) throw citiesErr;
-
-      const { data: votes, error: votesErr } = await supabase
-        .from("city_votes")
-        .select("city, user_id");
-      if (votesErr) throw votesErr;
-
-      return (cities ?? []).map((c) => {
-        const cityVotes = (votes ?? []).filter((v) => v.city === c.city);
-        const hasVoted = userId ? cityVotes.some((v) => v.user_id === userId) : false;
-        return {
-          ...c,
-          current_pledges: cityVotes.length,
-          has_voted: hasVoted,
-        };
-      });
+      // Aggregate RPC rather than pulling the whole city_votes table client
+      // side — RLS now scopes city_votes reads to each user's own rows, so
+      // a raw select would only ever see the caller's own votes anyway.
+      const { data, error } = await supabase.rpc("get_expansion_cities_with_votes");
+      if (error) throw error;
+      return data ?? [];
     },
   });
 }
@@ -1061,17 +999,19 @@ export function useMyStoryForEvent(eventId: string | undefined, userId: string |
   });
 }
 
+// Starts a real Stripe subscription checkout instead of instantly granting
+// premium client-side. Returns the hosted checkout URL to open; premium is
+// only actually granted once stripe-webhook sees the subscription complete.
 export function useSubscribePremium(userId: string | undefined) {
-  const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
       if (!userId) throw new Error("Not signed in");
-      const { data, error } = await supabase.rpc("subscribe_to_premium");
+      const { data, error } = await supabase.functions.invoke(
+        "create-premium-checkout-session",
+      );
       if (error) throw error;
-      return data as Profile;
-    },
-    onSuccess: (data) => {
-      qc.setQueryData(["profile", userId], data);
+      if (!data?.url) throw new Error("No checkout URL returned");
+      return data.url as string;
     },
   });
 }

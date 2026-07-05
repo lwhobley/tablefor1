@@ -1,5 +1,6 @@
-import { corsHeaders } from "./_shared/cors.ts";
-import { getAuthUserEmail } from "./_shared/users.ts";
+import { corsHeaders } from "../_shared/cors.ts";
+import { getAuthUserEmail } from "../_shared/users.ts";
+import { isAuthorizedAdminCaller, unauthorizedResponse } from "../_shared/admin.ts";
 
 async function generateMatchRevealEmail(
   userName: string,
@@ -99,6 +100,7 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
+  if (!isAuthorizedAdminCaller(req)) return unauthorizedResponse(corsHeaders);
 
   try {
     const { match_id } = await req.json();

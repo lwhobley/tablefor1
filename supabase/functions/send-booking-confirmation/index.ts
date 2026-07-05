@@ -2,8 +2,9 @@
 // Invoked by stripe-webhook with { booking_id }.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "./_shared/cors.ts";
-import { getAuthUserEmail } from "./_shared/users.ts";
+import { corsHeaders } from "../_shared/cors.ts";
+import { getAuthUserEmail } from "../_shared/users.ts";
+import { isAuthorizedAdminCaller, unauthorizedResponse } from "../_shared/admin.ts";
 
 function bookingConfirmationHtml(
   userName: string,
@@ -63,6 +64,8 @@ Deno.serve(async (req) => {
       status,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+
+  if (!isAuthorizedAdminCaller(req)) return unauthorizedResponse(corsHeaders);
 
   try {
     const { booking_id } = await req.json();
