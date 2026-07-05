@@ -4,10 +4,13 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders, preflight } from "../_shared/cors.ts";
+import { isAuthorizedAdminCaller, unauthorizedResponse } from "../_shared/admin.ts";
 
 Deno.serve(async (req) => {
   const pre = preflight(req);
   if (pre) return pre;
+
+  if (!isAuthorizedAdminCaller(req)) return unauthorizedResponse(corsHeaders);
 
   const { availability_id, price_cents, is_mystery, reveal_hours_before } = await req.json();
   if (!availability_id || !price_cents) {
@@ -32,6 +35,12 @@ Deno.serve(async (req) => {
       status: 404,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
+  }
+  if (slot.is_approved) {
+    return new Response(
+      JSON.stringify({ error: "This availability slot was already approved" }),
+      { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
 
   const { data: event, error: eventErr } = await supabase

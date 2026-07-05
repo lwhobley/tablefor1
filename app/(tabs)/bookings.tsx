@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth";
-import { useUserBookings, useCancelBooking, useMyStoryForEvent, type UserBooking } from "@/lib/queries";
+import { useUserBookings, useCancelBooking, useMyStoryForEvent, useMyMatchForEvent, type UserBooking } from "@/lib/queries";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { MysteryBadge } from "@/components/MysteryBadge";
@@ -29,6 +29,7 @@ function BookingCard({
   const { session } = useAuth();
   const userId = session?.user?.id;
   const { data: myStory } = useMyStoryForEvent(booking.event_id, userId);
+  const { data: matchId } = useMyMatchForEvent(booking.event_id, userId);
 
   const eventDate = new Date(booking.event.event_date);
   const isPast = eventDate < new Date();
@@ -129,11 +130,13 @@ function BookingCard({
 
       {isPast && booking.status === "confirmed" && (
         <View className="gap-2 mt-1">
-          <Button
-            label="Leave feedback"
-            variant="secondary"
-            onPress={() => router.push(`/feedback/${booking.id}`)}
-          />
+          {matchId && (
+            <Button
+              label="Leave feedback"
+              variant="secondary"
+              onPress={() => router.push(`/feedback/${matchId}`)}
+            />
+          )}
           <Button
             label={myStory ? "View Story Feed" : "Share Story"}
             variant={myStory ? "ghost" : "secondary"}

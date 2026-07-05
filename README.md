@@ -26,18 +26,18 @@ to `/auth/callback`.
 ## Supabase setup
 
 1. Create a new Supabase project.
-2. In the SQL editor, run `supabase/migrations/0001_init.sql` (full
-   Phase 1–3 schema, enums, RLS policies, updated_at + new-user triggers).
-3. Then run `supabase/migrations/0002_storage.sql` to provision the
-   public `avatars` bucket and owner-scoped storage policies.
-4. Then run `supabase/migrations/0003_partner_portal.sql` to install the
-   partner-scoped SECURITY DEFINER RPCs (`partner_my_restaurant`,
-   `partner_upcoming_events`, `partner_dashboard_stats`) and the
-   partner-can-edit-own-restaurant policy.
-4. In **Authentication → URL Configuration**, add your dev and prod URLs
+2. Run every file in `supabase/migrations/` **in filename order**
+   (`0001_init.sql` through the highest-numbered file) via the SQL editor
+   or `supabase db push`. Each migration depends on the ones before it —
+   see the header comment at the top of each file for what it adds.
+   Notably: `0001` is the full Phase 1–3 schema + RLS; `0002` provisions
+   the `avatars` bucket; `0003` installs the partner-scoped RPCs; `0015`
+   onward add payout idempotency, booking-capacity enforcement, and the
+   RLS/security fixes described in their header comments.
+3. In **Authentication → URL Configuration**, add your dev and prod URLs
    (e.g. `http://localhost:8081`, `https://your-app.vercel.app`) as
    redirect URLs.
-5. Copy the project URL + anon key into `.env`.
+4. Copy the project URL + anon key into `.env`.
 
 The `handle_new_user` trigger creates a matching `public.users` row the
 first time someone confirms a magic link (with placeholder name `'New
@@ -95,15 +95,29 @@ npm run build:web   # outputs to dist/
 `vercel.json` already pins the build command and SPA rewrites. Add the
 two `EXPO_PUBLIC_*` env vars in the Vercel project settings.
 
-## Edge functions (Phase 3 shipped, Phase 2 stubs)
+## Edge functions
 
 Live under `supabase/functions/`:
 
-| Function | Phase | Trigger |
-|---|---|---|
-| `approve-availability` | 3 | Admin POST — turns a slot into an event |
-| `create-connect-link` | 3 | Partner POST — Stripe Express onboarding URL |
-| `settle-payout` | 3 | Admin / cron after event completes |
+| Function | Trigger |
+|---|---|
+| `create-checkout-session` | Diner POST — Stripe Checkout for a booking |
+| `create-premium-checkout-session` | Diner POST — Stripe Checkout (subscription) for Premium |
+| `stripe-webhook` | Stripe → confirms bookings, activates/renews/cancels Premium |
+| `create-connect-link` | Partner POST — Stripe Express onboarding URL |
+| `approve-availability` | Admin-only — turns a slot into an event |
+| `settle-payout` | Admin/cron-only — pays a partner out after an event completes |
+| `run-matching` | Admin/cron-only — groups confirmed bookings into matches |
+| `reveal-match` | Admin/cron-only — reveals matches + fires the reveal email |
+| `resy-sniper` | Admin/cron-only — polls Resy for pending reservation slots |
+| `send-booking-confirmation`, `send-match-revealed`, `send-feedback-request` | Internal — called by the functions above, never directly by clients |
+
+**Admin-only functions require an `x-admin-secret` header** matching
+`ADMIN_FUNCTION_SECRET` (see `.env.functions.example`) — there's no admin
+role in `auth.users` yet, so this shared secret is what stands between
+"any authenticated user" and "admin" for these endpoints. Whatever
+dashboard/cron job calls them needs that header set; a plain diner/partner
+JWT is rejected with 401.
 
 Deploy with `supabase functions deploy <name>`. They expect the env vars
 in `.env.functions.example`:
@@ -123,6 +137,17 @@ supabase secrets set --env-file supabase/.env
   added in migration `0003` — they bypass the diner-side bookings RLS but
   scope internally on `partner_email = auth.email()`, so partners only
   ever see counts and first names for diners at their own events.
+
+## Testing & CI
+
+- `npm test` runs the Vitest suite for pure client-side logic
+  (`lib/mystery.ts`, `lib/sparks.ts`). Anything that touches Supabase/React
+  Query directly isn't unit tested here — verify those by hand via the
+  `run` skill or manual QA.
+- `deno test supabase/functions` runs the matching-algorithm tests in
+  `supabase/functions/run-matching/matching.test.ts`.
+- `.github/workflows/ci.yml` runs `typecheck` + `lint` + `npm test` for the
+  app, and `deno check` + `deno test` for the edge functions, on every PR.
 
 ## What's next
 
