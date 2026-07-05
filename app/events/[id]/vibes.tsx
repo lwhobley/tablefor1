@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { ActivityIndicator, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Screen } from "../../../components/Screen";
@@ -22,20 +21,15 @@ export default function VibeCheckScreen() {
   const { data: myChecks } = useMyVibeChecks(eventId, userId);
   const swipe = useSwipeVibeCheck(userId);
 
-  const [currentIndex, setCurrentIndex] = useState(0);
-
   const checkedIds = new Set(
     (myChecks ?? []).map((c: VibeCheck) => c.target_user_id),
   );
   const unchecked = (attendees ?? []).filter((p: Profile) => !checkedIds.has(p.id));
 
   function handleSwipe(direction: "like" | "pass") {
-    const target = unchecked[currentIndex];
+    const target = unchecked[0];
     if (!target || !eventId) return;
-    swipe.mutate(
-      { eventId, targetUserId: target.id, direction },
-      { onSuccess: () => setCurrentIndex((i) => i + 1) },
-    );
+    swipe.mutate({ eventId, targetUserId: target.id, direction });
   }
 
   if (isLoading) {
@@ -48,7 +42,7 @@ export default function VibeCheckScreen() {
     );
   }
 
-  if (unchecked.length === 0 || currentIndex >= unchecked.length) {
+  if (unchecked.length === 0) {
     return (
       <Screen>
         <View className="flex-1 items-center justify-center gap-4">
@@ -63,8 +57,8 @@ export default function VibeCheckScreen() {
     );
   }
 
-  const current = unchecked[currentIndex];
-  const remaining = unchecked.length - currentIndex;
+  const current = unchecked[0];
+  const remaining = unchecked.length;
 
   return (
     <Screen>

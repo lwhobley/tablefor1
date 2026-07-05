@@ -180,11 +180,14 @@ export function useCreateBooking(userId: string | undefined) {
     onSuccess: async (booking) => {
       qc.invalidateQueries({ queryKey: ["bookings", userId] });
       // Clear any waitlist entry now that the user has a booking again.
-      await supabase
+      const { error } = await supabase
         .from("event_waitlist")
         .delete()
         .eq("event_id", booking.event_id)
         .eq("user_id", userId!);
+      if (error) {
+        console.warn("[bookings] Could not clear waitlist entry", error);
+      }
       qc.invalidateQueries({ queryKey: ["waitlist", booking.event_id, userId] });
     },
   });
@@ -256,7 +259,7 @@ export function useMatchMessages(matchId: string | undefined) {
       const { data, error } = await supabase
         .from("messages")
         .select(
-          `id, match_id, sender_id, body, created_at,
+          `id, match_id, sender_id, recipient_id, body, created_at,
            sender:users(id, name, photo_url)`
         )
         .eq("match_id", matchId!)
@@ -299,14 +302,17 @@ export function useSubscribeToMessages(matchId: string | undefined) {
 export function usePostMessage(matchId: string | undefined, userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: string) => {
+    mutationFn: async (body: string | { body: string; recipientId?: string }) => {
       if (!userId || !matchId) throw new Error("Not signed in");
+      const message =
+        typeof body === "string" ? { body, recipientId: undefined } : body;
       const { data, error } = await supabase
         .from("messages")
         .insert({
           match_id: matchId,
           sender_id: userId,
-          body,
+          recipient_id: message.recipientId ?? null,
+          body: message.body,
         })
         .select()
         .single();
@@ -353,26 +359,14 @@ export function useSubmitFeedback(userId: string | undefined) {
 
 export function useEventAttendees(eventId: string | undefined, userId: string | undefined) {
   return useQuery({
-    queryKey: ["event-attendees", eventId],
+    queryKey: ["event-attendees", eventId, userId],
     enabled: !!eventId && !!userId,
     queryFn: async () => {
-      const { data: bookings, error: bErr } = await supabase
-        .from("bookings")
-        .select("user_id")
-        .eq("event_id", eventId!)
-        .eq("status", "confirmed")
-        .neq("user_id", userId!);
-      if (bErr) throw bErr;
-
-      const userIds = (bookings ?? []).map((b) => b.user_id);
-      if (userIds.length === 0) return [];
-
-      const { data: profiles, error: pErr } = await supabase
-        .from("users")
-        .select("*")
-        .in("id", userIds);
-      if (pErr) throw pErr;
-      return (profiles ?? []) as Profile[];
+      const { data, error } = await supabase.rpc("get_event_attendees", {
+        p_event_id: eventId!,
+      });
+      if (error) throw error;
+      return (data ?? []) as unknown as Profile[];
     },
   });
 }

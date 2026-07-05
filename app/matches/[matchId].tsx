@@ -30,7 +30,10 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState, useRef, useEffect, useMemo } from "react";
 
 export default function MatchDetail() {
-  const { matchId } = useLocalSearchParams<{ matchId: string }>();
+  const { matchId, recipientId } = useLocalSearchParams<{
+    matchId: string;
+    recipientId?: string;
+  }>();
   const router = useRouter();
   const { session } = useAuth();
   const userId = session?.user?.id;
@@ -83,7 +86,23 @@ export default function MatchDetail() {
   const eventDate = new Date(match.event.event_date);
   const isPast = eventDate < new Date();
   const isRevealed = !!match.revealed_at;
-  const canMessage = isRevealed && !isPast;
+  const selectedRecipient = match.diners.find(
+    (diner: { id: string }) => diner.id === recipientId,
+  );
+  const canGroupMessage = isRevealed && !isPast;
+  const canPairMessage = isPast && !!selectedRecipient;
+  const canMessage = canGroupMessage || canPairMessage;
+  const visibleMessages = (messages ?? []).filter((message: {
+    sender_id: string;
+    recipient_id: string | null;
+  }) => {
+    if (!selectedRecipient) return !message.recipient_id;
+    return (
+      message.recipient_id &&
+      ((message.sender_id === userId && message.recipient_id === selectedRecipient.id) ||
+        (message.sender_id === selectedRecipient.id && message.recipient_id === userId))
+    );
+  });
   const restaurantRevealed = isMysteryRevealed(match.event);
   const checkinWindowOpen =
     Date.now() >= eventDate.getTime() - 30 * 60 * 1000 &&
@@ -93,7 +112,9 @@ export default function MatchDetail() {
     if (!text.trim()) return;
     const messageText = text;
     setText("");
-    postMessage.mutate(messageText, {
+    postMessage.mutate(canPairMessage
+      ? { body: messageText, recipientId: selectedRecipient!.id }
+      : messageText, {
       onError: (err) => {
         setText(messageText); // restore so the user doesn't lose their message
         Alert.alert("Couldn't send", (err as Error).message);
@@ -187,7 +208,7 @@ export default function MatchDetail() {
       <FlatList
         ref={listRef}
         className="flex-1"
-        data={messages ?? []}
+        data={visibleMessages}
         keyExtractor={(m) => m.id}
         renderItem={({ item }) => {
           const isOwnMessage = item.sender_id === userId;
@@ -230,7 +251,9 @@ export default function MatchDetail() {
           <View className="items-center justify-center py-8">
             <Text className="text-ink/60">
               {canMessage
-                ? "No messages yet. Start a conversation!"
+                ? canPairMessage
+                  ? `No private messages with ${selectedRecipient!.name} yet.`
+                  : "No messages yet. Start a conversation!"
                 : isRevealed
                   ? "This dinner has wrapped up."
                   : "Messaging opens when your match is revealed."}
@@ -242,11 +265,22 @@ export default function MatchDetail() {
 
       {/* Composer (pre-event) or feedback CTA (post-event) */}
       {canMessage && (
-        <View className="mt-2 flex-row items-center gap-2 border-t border-ink/10 pt-3">
+        <View className="mt-2 gap-2 border-t border-ink/10 pt-3">
+          {canPairMessage && (
+            <View className="flex-row items-center justify-between">
+              <Text className="text-xs font-medium text-ink/60">
+                Private spark chat with {selectedRecipient!.name}
+              </Text>
+              <Pressable onPress={() => router.setParams({ recipientId: undefined })}>
+                <Text className="text-xs font-medium text-rust">Group view</Text>
+              </Pressable>
+            </View>
+          )}
+          <View className="flex-row items-center gap-2">
           <TextInput
             value={text}
             onChangeText={setText}
-            placeholder="Type a message..."
+            placeholder={canPairMessage ? `Message ${selectedRecipient!.name}...` : "Type a message..."}
             placeholderTextColor="#8C7F73"
             multiline
             maxLength={2000}
@@ -261,6 +295,7 @@ export default function MatchDetail() {
           >
             <Ionicons name="send" size={20} color="white" />
           </Pressable>
+          </View>
         </View>
       )}
 

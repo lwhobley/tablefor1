@@ -2,6 +2,15 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { getAuthUserEmail } from "../_shared/users.ts";
 import { isAuthorizedAdminCaller, unauthorizedResponse } from "../_shared/admin.ts";
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function generateMatchRevealEmail(
   userName: string,
   matchedUsers: Array<{ name: string; photo_url: string | null; bio: string | null; energy_level: string; conv_style: string }>,
@@ -24,11 +33,11 @@ async function generateMatchRevealEmail(
     .map(
       (u) =>
         `<div style="margin-bottom: 16px; padding: 12px; background: #f5f5f4; border-radius: 8px;">
-          <div style="font-weight: 600; margin-bottom: 4px;">${u.name}</div>
+          <div style="font-weight: 600; margin-bottom: 4px;">${escapeHtml(u.name)}</div>
           <div style="font-size: 12px; color: #8c7f73; margin-bottom: 4px;">
             ${u.energy_level || "?"} energy · ${u.conv_style || "?"} conversationalist
           </div>
-          ${u.bio ? `<div style="font-size: 14px; color: #666; margin-top: 4px;">${u.bio}</div>` : ""}
+          ${u.bio ? `<div style="font-size: 14px; color: #666; margin-top: 4px;">${escapeHtml(u.bio)}</div>` : ""}
         </div>`
     )
     .join("");
@@ -67,7 +76,7 @@ async function generateMatchRevealEmail(
 
             <div class="detail-row">
               <span class="label">Restaurant</span>
-              <span class="value">${restaurantName}</span>
+              <span class="value">${escapeHtml(restaurantName)}</span>
             </div>
 
             <div class="detail-row">
@@ -83,7 +92,7 @@ async function generateMatchRevealEmail(
           </div>
 
           <div style="text-align: center;">
-            <a href="https://tableforone.app/matches/${matchId}" class="cta">View Full Profiles & Message</a>
+            <a href="https://tableforone.app/matches/${encodeURIComponent(matchId)}" class="cta">View Full Profiles & Message</a>
           </div>
 
           <div class="footer">
@@ -227,7 +236,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           from: adminEmail,
           to: toEmail,
-          subject: `Your dinner match is here! Meet your group at ${restaurant?.name || "Table for One"}`,
+          subject: `Your dinner match is here! Meet your group at ${restaurant?.name || "Table for One"}`.replace(/[\r\n]+/g, " "),
           html: htmlContent,
         }),
       });

@@ -95,12 +95,15 @@ Deno.serve(async (req) => {
     });
   }
 
-  const transfer = await stripe.transfers.create({
-    amount: partnerShare,
-    currency: "usd",
-    destination: stripeAccount,
-    metadata: { event_id, covers: String(covers ?? 0) },
-  });
+  const transfer = await stripe.transfers.create(
+    {
+      amount: partnerShare,
+      currency: "usd",
+      destination: stripeAccount,
+      metadata: { event_id, covers: String(covers ?? 0) },
+    },
+    { idempotencyKey: `settle-payout:${event_id}` },
+  );
 
   // Record the payout before returning. The unique(event_id) constraint
   // guarantees a concurrent duplicate call can't insert a second row even

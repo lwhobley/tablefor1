@@ -94,7 +94,7 @@ Deno.serve(async (req) => {
       try {
         const { data: booking } = await admin
           .from("bookings")
-          .select("id, status")
+          .select("id, event_id, status, event:events(price_cents)")
           .eq("id", bookingId)
           .maybeSingle();
 
@@ -105,10 +105,56 @@ Deno.serve(async (req) => {
 
         // Idempotent: only act on a still-pending booking.
         if (booking.status === "pending") {
+          const bookingEvent = booking.event as { price_cents: number } | null;
+          const paidAmount = session.amount_total;
+          const paidCurrency = session.currency?.toLowerCase();
+          const metadataEventId = session.metadata?.event_id;
+          const paymentMatchesBooking =
+            !!bookingEvent &&
+            metadataEventId === booking.event_id &&
+            paidCurrency === "usd" &&
+            paidAmount === bookingEvent.price_cents;
+
+          if (!paymentMatchesBooking) {
+            console.error(
+              `Checkout session ${session.id} does not match booking ${bookingId}; refunding if paid.`,
+              {
+                booking_event_id: booking.event_id,
+                metadata_event_id: metadataEventId,
+                expected_amount: bookingEvent?.price_cents,
+                paid_amount: paidAmount,
+                paid_currency: paidCurrency,
+              },
+            );
+            if (session.payment_intent) {
+              try {
+                await stripe.refunds.create({
+                  payment_intent: session.payment_intent as string,
+                });
+              } catch (refundErr) {
+                console.error(
+                  `Refund failed for mismatched checkout session ${session.id}:`,
+                  refundErr,
+                );
+              }
+            }
+            await admin
+              .from("bookings")
+              .update({
+                status: "cancelled",
+                stripe_session_id: session.id,
+                stripe_payment_id: session.payment_intent as string,
+              })
+              .eq("id", bookingId)
+              .eq("status", "pending");
+            return json({ received: true, refunded: true });
+          }
+
           const { error: updateError } = await admin
             .from("bookings")
             .update({
               status: "confirmed",
+              amount_cents: bookingEvent!.price_cents,
               stripe_session_id: session.id,
               stripe_payment_id: session.payment_intent as string,
             })

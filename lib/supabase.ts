@@ -135,6 +135,7 @@ export type Message = {
   id: string;
   match_id: string;
   sender_id: string;
+  recipient_id: string | null;
   body: string;
   created_at: string;
 };

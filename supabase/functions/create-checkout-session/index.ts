@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
 
   try {
     const { booking_id, event_id } = await req.json();
-    if (!booking_id || !event_id) {
+    if (!booking_id) {
       return json({ error: "Missing fields" }, 400);
     }
 
@@ -44,7 +44,7 @@ Deno.serve(async (req) => {
 
     const { data: booking } = await admin
       .from("bookings")
-      .select("id, user_id, status, amount_cents")
+      .select("id, event_id, user_id, status, amount_cents")
       .eq("id", booking_id)
       .maybeSingle();
 
@@ -58,13 +58,16 @@ Deno.serve(async (req) => {
     if (booking.status !== "pending") {
       return json({ error: "Booking already processed" }, 400);
     }
+    if (event_id && booking.event_id !== event_id) {
+      return json({ error: "Booking does not belong to this event" }, 400);
+    }
 
     const { data: event } = await admin
       .from("events")
       .select(
         "id, status, event_date, group_size, format, price_cents, published_at, early_access_hours, restaurant:restaurants(name)",
       )
-      .eq("id", event_id)
+      .eq("id", booking.event_id)
       .maybeSingle();
 
     if (!event) {
@@ -110,10 +113,19 @@ Deno.serve(async (req) => {
     const { count: confirmedCovers } = await admin
       .from("bookings")
       .select("*", { count: "exact", head: true })
-      .eq("event_id", event_id)
+      .eq("event_id", booking.event_id)
       .eq("status", "confirmed");
     if ((confirmedCovers ?? 0) >= event.group_size) {
       return json({ error: "This event is already full" }, 400);
+    }
+
+    if (booking.amount_cents !== event.price_cents) {
+      const { error: amountErr } = await admin
+        .from("bookings")
+        .update({ amount_cents: event.price_cents })
+        .eq("id", booking.id)
+        .eq("status", "pending");
+      if (amountErr) throw amountErr;
     }
 
     const restaurantName =
@@ -144,9 +156,9 @@ Deno.serve(async (req) => {
           quantity: 1,
         },
       ],
-      success_url: `${appUrl}/bookings/${event_id}?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${appUrl}/events/${event_id}`,
-      metadata: { booking_id, event_id, user_id: booking.user_id },
+      success_url: `${appUrl}/bookings/${booking.event_id}?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${appUrl}/events/${booking.event_id}`,
+      metadata: { booking_id, event_id: booking.event_id, user_id: booking.user_id },
     });
 
     return json({ url: session.url });
