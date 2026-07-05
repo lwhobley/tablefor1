@@ -71,7 +71,7 @@ Deno.serve(async (req) => {
     );
   }
 
-  const stripeAccount = (event.restaurants as { stripe_account: string | null } | null)
+  const stripeAccount = (event.restaurants as unknown as { stripe_account: string | null } | null)
     ?.stripe_account;
   if (!stripeAccount) {
     return new Response(JSON.stringify({ error: "restaurant has no Stripe account" }), {

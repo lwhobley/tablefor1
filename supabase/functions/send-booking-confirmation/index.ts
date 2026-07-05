@@ -102,7 +102,7 @@ Deno.serve(async (req) => {
     const userEmail = await getAuthUserEmail(booking.user_id);
     if (!userEmail) return json({ error: "User email not found" }, 404);
 
-    const event = booking.event as {
+    const event = booking.event as unknown as {
       event_date: string;
       group_size: number;
       restaurant: { name?: string } | null;

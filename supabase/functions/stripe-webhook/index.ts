@@ -105,7 +105,7 @@ Deno.serve(async (req) => {
 
         // Idempotent: only act on a still-pending booking.
         if (booking.status === "pending") {
-          const bookingEvent = booking.event as { price_cents: number } | null;
+          const bookingEvent = booking.event as unknown as { price_cents: number } | null;
           const paidAmount = session.amount_total;
           const paidCurrency = session.currency?.toLowerCase();
           const metadataEventId = session.metadata?.event_id;

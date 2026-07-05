@@ -129,7 +129,7 @@ Deno.serve(async (req) => {
     }
 
     const restaurantName =
-      (event.restaurant as { name?: string } | null)?.name ??
+      (event.restaurant as unknown as { name?: string } | null)?.name ??
       "an exclusive venue";
 
     const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
