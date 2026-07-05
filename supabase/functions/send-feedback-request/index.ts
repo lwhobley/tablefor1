@@ -152,7 +152,7 @@ Deno.serve(async (req) => {
     // Fetch users
     const userIds = match.user_ids || [];
     const usersResponse = await fetch(
-      `${supabaseUrl}/rest/v1/users?id=in.(${userIds.join(",")})&select=id,name`,
+      `${supabaseUrl}/rest/v1/users?id=in.(${userIds.map((id: string) => `"${id}"`).join(",")})&select=id,name`,
       {
         method: "GET",
         headers: {

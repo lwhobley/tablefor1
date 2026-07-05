@@ -11,7 +11,6 @@ import {
   usePartnerRestaurant,
   usePartnerMenu,
   useAddMenuItem,
-  useUpdateMenuItem,
   useDeleteMenuItem,
 } from "../../lib/partnerQueries";
 import type { MenuCategory, RestaurantMenuItem } from "../../lib/supabase";

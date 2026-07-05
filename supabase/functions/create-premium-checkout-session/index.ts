@@ -61,6 +61,12 @@ Deno.serve(async (req) => {
         metadata: { user_id: caller.id },
       });
       customerId = customer.id;
+      // Persist immediately so retried/abandoned checkouts reuse the same
+      // Stripe customer instead of creating orphaned duplicates.
+      await admin
+        .from("users")
+        .update({ stripe_customer_id: customerId })
+        .eq("id", caller.id);
     }
 
     const appUrl = Deno.env.get("APP_URL") || "http://localhost:8081";

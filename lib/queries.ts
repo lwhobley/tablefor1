@@ -17,7 +17,6 @@ import {
   type DinerTag,
   type BadgeCount,
   type PlusOneInvite,
-  type ExpansionCity,
   type CityVote,
   type DinnerStory,
   type FavoriteRestaurant,
