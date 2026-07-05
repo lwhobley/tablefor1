@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Image, Linking, Pressable, Text, View, TextInput, Alert } from "react-native";
+import { Image, Linking, Pressable, Text, View, TextInput, Alert, ScrollView } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { Screen } from "../../components/Screen";
@@ -15,7 +15,7 @@ import {
   LANGUAGE_OPTIONS,
 } from "../../components/preferences";
 import { useAuth } from "../../lib/auth";
-import { useProfile, useUpdateProfile, useStreak, useTrustScore, useBadges, useSubscribePremium, useToggleWindowSeat, useFavoriteRestaurants, useSubmitRestaurantRecommendation } from "../../lib/queries";
+import { useProfile, useUpdateProfile, useStreak, useTrustScore, useBadges, useSubscribePremium, useToggleWindowSeat, useFavoriteRestaurants, useSubmitRestaurantRecommendation, useIcebreakerPrompts, useUserIcebreakers, useSaveUserIcebreaker, useDeleteUserIcebreaker } from "../../lib/queries";
 import { uploadAvatar } from "../../lib/uploadAvatar";
 import { StreakBadge } from "../../components/StreakBadge";
 import { BadgeList } from "../../components/BadgeList";
@@ -53,6 +53,56 @@ export default function ProfileScreen() {
   const [recNeighborhood, setRecNeighborhood] = useState("");
   const [recNotes, setRecNotes] = useState("");
   const [recSubmitting, setRecSubmitting] = useState(false);
+
+  // Icebreakers state and hooks
+  const { data: userIcebreakers } = useUserIcebreakers(session?.user?.id);
+  const { data: prompts } = useIcebreakerPrompts();
+  const saveIcebreaker = useSaveUserIcebreaker(session?.user?.id);
+  const deleteIcebreaker = useDeleteUserIcebreaker(session?.user?.id);
+
+  const [showAddIcebreaker, setShowAddIcebreaker] = useState(false);
+  const [selectedPromptId, setSelectedPromptId] = useState("");
+  const [icebreakerAnswer, setIcebreakerAnswer] = useState("");
+  const [ibSaving, setIbSaving] = useState(false);
+
+  async function handleSaveIcebreaker() {
+    if (!selectedPromptId || !icebreakerAnswer.trim()) return;
+    try {
+      setIbSaving(true);
+      await saveIcebreaker.mutateAsync({
+        promptId: selectedPromptId,
+        answer: icebreakerAnswer.trim(),
+      });
+      setIcebreakerAnswer("");
+      setSelectedPromptId("");
+      setShowAddIcebreaker(false);
+    } catch (err) {
+      Alert.alert("Error saving", (err as Error).message);
+    } finally {
+      setIbSaving(false);
+    }
+  }
+
+  async function handleDeleteIcebreaker(id: string) {
+    Alert.alert(
+      "Delete Icebreaker",
+      "Are you sure you want to delete this prompt?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteIcebreaker.mutateAsync(id);
+            } catch (err) {
+              Alert.alert("Error deleting", (err as Error).message);
+            }
+          },
+        },
+      ]
+    );
+  }
 
   useEffect(() => {
     if (!profile) return;
@@ -443,6 +493,113 @@ export default function ProfileScreen() {
               />
             )}
           </View>
+        </View>
+
+        {/* Icebreaker Prompts Section */}
+        <View className="gap-3 rounded-2xl border border-ink/10 bg-white p-5">
+          <View className="flex-row items-center gap-2">
+            <Ionicons name="chatbubble-ellipses-outline" size={22} color="#C2410C" />
+            <Text className="font-serif text-lg text-ink">Icebreaker Prompts</Text>
+          </View>
+          <Text className="text-sm text-ink/60 leading-5">
+            Answer up to 3 icebreakers to make your profile stand out at the dinner table.
+          </Text>
+
+          {/* List existing icebreakers */}
+          {userIcebreakers && userIcebreakers.length > 0 && (
+            <View className="gap-2 mt-1">
+              {userIcebreakers.map((ib: any) => (
+                <View key={ib.id} className="flex-row items-center justify-between border border-ink/10 rounded-xl bg-cream/15 p-3">
+                  <View className="flex-1 pr-2">
+                    <Text className="text-xs font-bold text-rust uppercase tracking-wider">{ib.prompt?.prompt_text}</Text>
+                    <Text className="text-sm font-medium text-ink mt-0.5">"{ib.answer}"</Text>
+                  </View>
+                  <Pressable onPress={() => handleDeleteIcebreaker(ib.id)} className="p-1 active:opacity-60">
+                    <Ionicons name="trash-outline" size={16} color="#EF4444" />
+                  </Pressable>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {/* Add Icebreaker section */}
+          {showAddIcebreaker ? (
+            <View className="mt-2 border-t border-ink/5 pt-3 gap-3">
+              <Text className="text-sm font-semibold text-ink">Add Icebreaker Answer</Text>
+
+              {/* Select prompt list */}
+              <View className="gap-1.5">
+                <Text className="text-xs text-ink/50">Select Prompt</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} className="py-1">
+                  <View className="flex-row gap-2">
+                    {(prompts ?? [])
+                      .filter((p: any) => !userIcebreakers?.some((ib: any) => ib.prompt_id === p.id))
+                      .map((p: any) => {
+                        const isSelected = selectedPromptId === p.id;
+                        return (
+                          <Pressable
+                            key={p.id}
+                            onPress={() => setSelectedPromptId(p.id)}
+                            className={`rounded-full px-3 py-1.5 border ${
+                              isSelected ? "bg-rust border-rust" : "bg-cream/40 border-ink/15"
+                            }`}
+                          >
+                            <Text className={`text-xs ${isSelected ? "text-white font-medium" : "text-ink/80"}`} numberOfLines={1}>
+                              {p.prompt_text}
+                            </Text>
+                          </Pressable>
+                        );
+                      })}
+                  </View>
+                </ScrollView>
+              </View>
+
+              {/* Answer input */}
+              {selectedPromptId ? (
+                <View className="gap-1">
+                  <Text className="text-xs text-ink/50">Your Answer</Text>
+                  <TextInput
+                    value={icebreakerAnswer}
+                    onChangeText={setIcebreakerAnswer}
+                    placeholder="Write your answer..."
+                    maxLength={1000}
+                    multiline
+                    className="rounded-lg border border-ink/10 bg-cream/30 p-2.5 text-sm text-ink min-h-[60px] textAlignVertical-top"
+                  />
+                </View>
+              ) : null}
+
+              <View className="flex-row gap-2 mt-1">
+                <View className="flex-1">
+                  <Button
+                    label="Save"
+                    onPress={handleSaveIcebreaker}
+                    disabled={!selectedPromptId || !icebreakerAnswer.trim()}
+                    loading={ibSaving}
+                  />
+                </View>
+                <View className="flex-1">
+                  <Button
+                    label="Cancel"
+                    variant="ghost"
+                    onPress={() => {
+                      setShowAddIcebreaker(false);
+                      setSelectedPromptId("");
+                      setIcebreakerAnswer("");
+                    }}
+                  />
+                </View>
+              </View>
+            </View>
+          ) : (
+            (userIcebreakers ?? []).length < 3 ? (
+              <Button
+                label="Add Icebreaker Answer"
+                variant="secondary"
+                onPress={() => setShowAddIcebreaker(true)}
+              />
+            ) : null
+          )}
         </View>
 
         {/* City Expansion Voting Banner */}

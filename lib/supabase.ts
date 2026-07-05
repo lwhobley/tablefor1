@@ -137,6 +137,7 @@ export type Message = {
   sender_id: string;
   recipient_id: string | null;
   body: string;
+  photo_url: string | null;
   created_at: string;
 };
 

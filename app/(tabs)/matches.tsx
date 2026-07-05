@@ -129,6 +129,25 @@ function EmptyState() {
   );
 }
 
+function ReconnectCTA() {
+  const router = useRouter();
+  return (
+    <Pressable
+      onPress={() => router.push("/matches/reconnect")}
+      className="mb-4 flex-row items-center justify-between rounded-2xl border border-rust/20 bg-rust/5 p-4 active:bg-rust/10"
+    >
+      <View className="flex-row items-center gap-3">
+        <Ionicons name="sparkles-outline" size={22} color="#C2410C" />
+        <View>
+          <Text className="font-semibold text-ink">Reconnect with Sparks</Text>
+          <Text className="text-xs text-ink/60">Schedule 1-on-1 dinners with past sparks</Text>
+        </View>
+      </View>
+      <Ionicons name="chevron-forward" size={18} color="#C2410C" />
+    </Pressable>
+  );
+}
+
 export default function Matches() {
   const { session } = useAuth();
   const userId = session?.user?.id;
@@ -141,6 +160,8 @@ export default function Matches() {
         <Text className="text-sm text-ink/50">Your matches</Text>
         <Text className="font-serif text-3xl text-ink">Dinner groups</Text>
       </View>
+
+      <ReconnectCTA />
 
       {/* List */}
       {isLoading ? (

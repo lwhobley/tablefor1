@@ -11,6 +11,8 @@ import {
   Alert,
 } from "react-native";
 import { useAuth } from "@/lib/auth";
+import * as ImagePicker from "expo-image-picker";
+import { uploadChatPhoto } from "@/lib/uploadChatPhoto";
 import {
   useMatchDetail,
   useMatchMessages,
@@ -18,6 +20,8 @@ import {
   useSubscribeToMessages,
   useMyBookingId,
   useMyCheckin,
+  useReactToMessage,
+  useRemoveReaction,
 } from "@/lib/queries";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
@@ -28,6 +32,8 @@ import { isMysteryRevealed, priceTier } from "@/lib/mystery";
 import { generateConversationStarters } from "@/lib/conversationStarters";
 import { Ionicons } from "@expo/vector-icons";
 import { useState, useRef, useEffect, useMemo } from "react";
+import { ProfileModal } from "@/components/ProfileModal";
+import type { Profile } from "@/lib/supabase";
 
 export default function MatchDetail() {
   const { matchId, recipientId } = useLocalSearchParams<{
@@ -37,6 +43,55 @@ export default function MatchDetail() {
   const router = useRouter();
   const { session } = useAuth();
   const userId = session?.user?.id;
+
+  const [selectedDiner, setSelectedDiner] = useState<Profile | null>(null);
+  const [profileModalVisible, setProfileModalVisible] = useState(false);
+
+  const reactToMessage = useReactToMessage(matchId, userId);
+  const removeReaction = useRemoveReaction(matchId, userId);
+  const [photoUploading, setPhotoUploading] = useState(false);
+  const [activeMessageForReaction, setActiveMessageForReaction] = useState<string | null>(null);
+
+  const handleSendPhoto = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      quality: 0.8,
+    });
+    if (result.canceled || !userId) return;
+    
+    try {
+      setPhotoUploading(true);
+      const publicUrl = await uploadChatPhoto(userId, {
+        uri: result.assets[0].uri,
+        mimeType: result.assets[0].mimeType ?? undefined,
+      });
+
+      postMessage.mutate(canPairMessage
+        ? { photoUrl: publicUrl, recipientId: selectedRecipient!.id }
+        : { photoUrl: publicUrl }, {
+        onError: (err) => {
+          Alert.alert("Couldn't send photo", (err as Error).message);
+        },
+      });
+    } catch (err) {
+      Alert.alert("Error uploading photo", (err as Error).message);
+    } finally {
+      setPhotoUploading(false);
+    }
+  };
+
+  const handleToggleReaction = async (messageId: string, emoji: string, hasReacted: boolean) => {
+    try {
+      if (hasReacted) {
+        await removeReaction.mutateAsync({ messageId, emoji });
+      } else {
+        await reactToMessage.mutateAsync({ messageId, emoji });
+      }
+    } catch (err) {
+      Alert.alert("Error updating reaction", (err as Error).message);
+    }
+  };
 
   const { data: match, isLoading: matchLoading } = useMatchDetail(matchId);
   const { data: messages } = useMatchMessages(matchId);
@@ -179,7 +234,14 @@ export default function MatchDetail() {
           contentContainerStyle={{ gap: 12 }}
         >
           {match.diners.map((diner: any) => (
-            <View key={diner.id} className="w-20 items-center gap-2">
+            <Pressable
+              key={diner.id}
+              onPress={() => {
+                setSelectedDiner(diner);
+                setProfileModalVisible(true);
+              }}
+              className="w-20 items-center gap-2 active:opacity-75"
+            >
               <View className="h-16 w-16 items-center justify-center overflow-hidden rounded-full border-2 border-ink/10 bg-cream">
                 {diner.photo_url ? (
                   <Image source={{ uri: diner.photo_url }} className="h-16 w-16" />
@@ -193,7 +255,7 @@ export default function MatchDetail() {
               <Text className="text-center text-xs text-ink/60">
                 {diner.energy_level} energy
               </Text>
-            </View>
+            </Pressable>
           ))}
         </ScrollView>
       ) : (
@@ -212,9 +274,16 @@ export default function MatchDetail() {
         keyExtractor={(m) => m.id}
         renderItem={({ item }) => {
           const isOwnMessage = item.sender_id === userId;
+          const reactions = item.reactions || [];
+          const emojiGroups = reactions.reduce((acc: Record<string, string[]>, r: any) => {
+            acc[r.emoji] = acc[r.emoji] || [];
+            acc[r.emoji].push(r.user_id);
+            return acc;
+          }, {});
+
           return (
             <View
-              className={`mb-3 flex-row gap-2 ${
+              className={`mb-3 flex-row gap-2 relative ${
                 isOwnMessage ? "justify-end" : "justify-start"
               }`}
             >
@@ -223,26 +292,95 @@ export default function MatchDetail() {
                   <Ionicons name="person-circle" size={32} color="#C2410C" />
                 </View>
               )}
-              <View
-                className={`max-w-xs rounded-lg px-3 py-2 ${
-                  isOwnMessage ? "bg-rust" : "bg-ink/10"
-                }`}
-              >
-                <Text
-                  className={`text-sm ${isOwnMessage ? "text-white" : "text-ink"}`}
-                >
-                  {item.body}
-                </Text>
-                <Text
-                  className={`mt-1 text-xs ${
-                    isOwnMessage ? "text-white/70" : "text-ink/60"
+              
+              <View className="relative">
+                {/* Long Press Reaction Picker */}
+                {activeMessageForReaction === item.id && (
+                  <View 
+                    style={{ elevation: 5 }}
+                    className={`flex-row gap-2.5 bg-white border border-ink/10 rounded-full px-3 py-1.5 absolute -top-11 z-50 shadow-md ${
+                      isOwnMessage ? "right-0" : "left-0"
+                    }`}
+                  >
+                    {["👍", "❤️", "😂", "😮", "😢", "🙏"].map((emoji) => {
+                      const hasReacted = (emojiGroups[emoji] || []).includes(userId || "");
+                      return (
+                        <Pressable
+                          key={emoji}
+                          onPress={() => {
+                            handleToggleReaction(item.id, emoji, hasReacted);
+                            setActiveMessageForReaction(null);
+                          }}
+                          className="active:scale-125"
+                        >
+                          <Text className="text-lg">{emoji}</Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
+
+                <Pressable
+                  onLongPress={() => setActiveMessageForReaction(item.id)}
+                  delayLongPress={250}
+                  className={`max-w-[250px] rounded-2xl px-4 py-2.5 ${
+                    isOwnMessage ? "bg-rust rounded-tr-none" : "bg-ink/10 rounded-tl-none"
                   }`}
                 >
-                  {new Date(item.created_at).toLocaleTimeString("en-US", {
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                </Text>
+                  {/* Photo Rendering */}
+                  {item.photo_url && (
+                    <Image
+                      source={{ uri: item.photo_url }}
+                      className="h-44 w-44 rounded-xl mb-1.5 bg-cream/20"
+                      resizeMode="cover"
+                    />
+                  )}
+
+                  {/* Body Text */}
+                  {item.body ? (
+                    <Text
+                      className={`text-sm leading-5 ${isOwnMessage ? "text-white" : "text-ink"}`}
+                    >
+                      {item.body}
+                    </Text>
+                  ) : null}
+
+                  {/* Message Timestamp */}
+                  <Text
+                    className={`mt-1 text-[10px] text-right ${
+                      isOwnMessage ? "text-white/70" : "text-ink/50"
+                    }`}
+                  >
+                    {new Date(item.created_at).toLocaleTimeString("en-US", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </Text>
+                </Pressable>
+
+                {/* Reaction Badges */}
+                {reactions.length > 0 && (
+                  <View className={`flex-row flex-wrap gap-1 mt-1 ${isOwnMessage ? "justify-end" : "justify-start"}`}>
+                    {Object.keys(emojiGroups).map((emoji) => {
+                      const userIds = emojiGroups[emoji];
+                      const hasReacted = userIds.includes(userId || "");
+                      return (
+                        <Pressable
+                          key={emoji}
+                          onPress={() => handleToggleReaction(item.id, emoji, hasReacted)}
+                          className={`flex-row items-center gap-1 rounded-full px-2 py-0.5 border ${
+                            hasReacted ? "bg-rust/10 border-rust/35" : "bg-ink/5 border-ink/10"
+                          }`}
+                        >
+                          <Text className="text-[10px]">{emoji}</Text>
+                          <Text className={`text-[9px] font-bold ${hasReacted ? "text-rust" : "text-ink/60"}`}>
+                            {userIds.length}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
+                  </View>
+                )}
               </View>
             </View>
           );
@@ -277,24 +415,37 @@ export default function MatchDetail() {
             </View>
           )}
           <View className="flex-row items-center gap-2">
-          <TextInput
-            value={text}
-            onChangeText={setText}
-            placeholder={canPairMessage ? `Message ${selectedRecipient!.name}...` : "Type a message..."}
-            placeholderTextColor="#8C7F73"
-            multiline
-            maxLength={2000}
-            className="flex-1 rounded-full bg-ink/5 px-4 py-2 text-ink"
-          />
-          <Pressable
-            onPress={handleSendMessage}
-            disabled={!text.trim() || postMessage.isPending}
-            className={`h-10 w-10 items-center justify-center rounded-full ${
-              text.trim() && !postMessage.isPending ? "bg-rust" : "bg-rust/40"
-            }`}
-          >
-            <Ionicons name="send" size={20} color="white" />
-          </Pressable>
+            <Pressable
+              onPress={handleSendPhoto}
+              disabled={photoUploading || postMessage.isPending}
+              className="h-10 w-10 items-center justify-center rounded-full bg-ink/5 active:bg-ink/10"
+            >
+              {photoUploading ? (
+                <ActivityIndicator size="small" color="#C2410C" />
+              ) : (
+                <Ionicons name="image-outline" size={20} color="#8C7F73" />
+              )}
+            </Pressable>
+            
+            <TextInput
+              value={text}
+              onChangeText={setText}
+              placeholder={canPairMessage ? `Message ${selectedRecipient!.name}...` : "Type a message..."}
+              placeholderTextColor="#8C7F73"
+              multiline
+              maxLength={2000}
+              className="flex-1 rounded-full bg-ink/5 px-4 py-2 text-ink"
+            />
+            
+            <Pressable
+              onPress={handleSendMessage}
+              disabled={(!text.trim() && !photoUploading) || postMessage.isPending}
+              className={`h-10 w-10 items-center justify-center rounded-full ${
+                (text.trim() && !postMessage.isPending) ? "bg-rust" : "bg-rust/40"
+              }`}
+            >
+              <Ionicons name="send" size={20} color="white" />
+            </Pressable>
           </View>
         </View>
       )}
@@ -312,6 +463,11 @@ export default function MatchDetail() {
           />
         </View>
       )}
+      <ProfileModal
+        visible={profileModalVisible}
+        onClose={() => setProfileModalVisible(false)}
+        diner={selectedDiner}
+      />
     </Screen>
   );
 }

@@ -258,13 +258,14 @@ export function useMatchMessages(matchId: string | undefined) {
       const { data, error } = await supabase
         .from("messages")
         .select(
-          `id, match_id, sender_id, recipient_id, body, created_at,
-           sender:users(id, name, photo_url)`
+          `id, match_id, sender_id, recipient_id, body, photo_url, created_at,
+           sender:users(id, name, photo_url),
+           reactions:message_reactions(id, emoji, user_id, user:users(name))`
         )
         .eq("match_id", matchId!)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as unknown as (Message & { sender: Profile })[];
+      return (data ?? []) as unknown as (Message & { sender: Profile; reactions: Array<{ id: string; emoji: string; user_id: string; user: { name: string } }> })[];
     },
   });
 }
@@ -272,16 +273,15 @@ export function useMatchMessages(matchId: string | undefined) {
 export function useSubscribeToMessages(matchId: string | undefined) {
   const qc = useQueryClient();
 
-  // Set up real-time subscription (supabase-js v2 channel API).
   React.useEffect(() => {
     if (!matchId) return;
 
-    const channel = supabase
+    const channel1 = supabase
       .channel(`messages:${matchId}`)
       .on(
         "postgres_changes",
         {
-          event: "INSERT",
+          event: "*",
           schema: "public",
           table: "messages",
           filter: `match_id=eq.${matchId}`,
@@ -292,8 +292,24 @@ export function useSubscribeToMessages(matchId: string | undefined) {
       )
       .subscribe();
 
+    const channel2 = supabase
+      .channel(`reactions:${matchId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "message_reactions",
+        },
+        () => {
+          qc.invalidateQueries({ queryKey: ["messages", matchId] });
+        }
+      )
+      .subscribe();
+
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(channel1);
+      supabase.removeChannel(channel2);
     };
   }, [matchId, qc]);
 }
@@ -301,17 +317,18 @@ export function useSubscribeToMessages(matchId: string | undefined) {
 export function usePostMessage(matchId: string | undefined, userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (body: string | { body: string; recipientId?: string }) => {
+    mutationFn: async (body: string | { body?: string; recipientId?: string; photoUrl?: string }) => {
       if (!userId || !matchId) throw new Error("Not signed in");
       const message =
-        typeof body === "string" ? { body, recipientId: undefined } : body;
+        typeof body === "string" ? { body, recipientId: undefined, photoUrl: undefined } : body;
       const { data, error } = await supabase
         .from("messages")
         .insert({
           match_id: matchId,
           sender_id: userId,
           recipient_id: message.recipientId ?? null,
-          body: message.body,
+          body: message.body ?? "",
+          photo_url: message.photoUrl ?? null,
         })
         .select()
         .single();
@@ -1117,5 +1134,359 @@ export function useSubmitRestaurantRecommendation(userId: string | undefined) {
     },
   });
 }
+
+// ============================================================
+// DINNER ROULETTE HOOKS
+// ============================================================
+
+export function useRouletteOptInStatus(userId: string | undefined, dateString: string) {
+  return useQuery({
+    queryKey: ["rouletteOptIn", userId, dateString],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("roulette_opt_ins")
+        .select("id, status, booking_id")
+        .eq("user_id", userId!)
+        .eq("date", dateString)
+        .maybeSingle();
+      if (error) throw error;
+      return data as { id: string; status: "pending" | "matched" | "expired"; booking_id: string | null } | null;
+    },
+  });
+}
+
+export function useOptInRoulette(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { city: string; date: string }) => {
+      if (!userId) throw new Error("Not signed in");
+      const { data, error } = await supabase
+        .from("roulette_opt_ins")
+        .insert({
+          user_id: userId,
+          city: params.city,
+          date: params.date,
+          status: "pending",
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: (_, variables) => {
+      qc.invalidateQueries({ queryKey: ["rouletteOptIn", userId, variables.date] });
+    },
+  });
+}
+
+export function useOptOutRoulette(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (dateString: string) => {
+      if (!userId) throw new Error("Not signed in");
+      const { error } = await supabase
+        .from("roulette_opt_ins")
+        .delete()
+        .eq("user_id", userId)
+        .eq("date", dateString);
+      if (error) throw error;
+    },
+    onSuccess: (_, dateString) => {
+      qc.invalidateQueries({ queryKey: ["rouletteOptIn", userId, dateString] });
+    },
+  });
+}
+
+// ============================================================
+// RECONNECT DINNER HOOKS
+// ============================================================
+
+export type ReconnectRequest = {
+  id: string;
+  user_id: string;
+  target_user_id: string;
+  status: "pending" | "accepted" | "declined";
+  event_id: string | null;
+  created_at: string;
+  sender: { id: string; name: string; photo_url: string | null };
+  recipient: { id: string; name: string; photo_url: string | null };
+};
+
+export function useReconnectRequests(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["reconnectRequests", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("reconnect_requests")
+        .select(`
+          id, user_id, target_user_id, status, event_id, created_at,
+          sender:users!reconnect_requests_user_id_fkey(id, name, photo_url),
+          recipient:users!reconnect_requests_target_user_id_fkey(id, name, photo_url)
+        `)
+        .or(`user_id.eq.${userId},target_user_id.eq.${userId}`);
+      if (error) throw error;
+      const formatted = (data ?? []).map((row: any) => ({
+        ...row,
+        sender: Array.isArray(row.sender) ? row.sender[0] : row.sender,
+        recipient: Array.isArray(row.recipient) ? row.recipient[0] : row.recipient,
+      }));
+      return formatted as ReconnectRequest[];
+    },
+  });
+}
+
+export function useCreateReconnectRequest(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (targetUserId: string) => {
+      if (!userId) throw new Error("Not signed in");
+      const { data, error } = await supabase
+        .from("reconnect_requests")
+        .insert({
+          user_id: userId,
+          target_user_id: targetUserId,
+          status: "pending",
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reconnectRequests", userId] });
+    },
+  });
+}
+
+export function useRespondReconnectRequest(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { id: string; status: "accepted" | "declined" }) => {
+      const { data, error } = await supabase
+        .from("reconnect_requests")
+        .update({ status: params.status })
+        .eq("id", params.id)
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reconnectRequests", userId] });
+    },
+  });
+}
+
+export function useBookReconnectDinner(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { reconnectRequestId: string; restaurantId: string; eventDate: string }) => {
+      const { data, error } = await supabase.functions.invoke(
+        "create-reconnect-dinner",
+        {
+          body: {
+            reconnect_request_id: params.reconnectRequestId,
+            restaurant_id: params.restaurantId,
+            event_date: params.eventDate,
+          },
+        }
+      );
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["reconnectRequests", userId] });
+      qc.invalidateQueries({ queryKey: ["matches"] });
+    },
+  });
+}
+
+// ============================================================
+// CHAT REACTIONS HOOKS
+// ============================================================
+
+export function useReactToMessage(matchId: string | undefined, userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { messageId: string; emoji: string }) => {
+      if (!userId) throw new Error("Not signed in");
+      const { data, error } = await supabase
+        .from("message_reactions")
+        .insert({
+          message_id: params.messageId,
+          user_id: userId,
+          emoji: params.emoji,
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["messages", matchId] });
+    },
+  });
+}
+
+export function useRemoveReaction(matchId: string | undefined, userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { messageId: string; emoji: string }) => {
+      if (!userId) throw new Error("Not signed in");
+      const { error } = await supabase
+        .from("message_reactions")
+        .delete()
+        .eq("message_id", params.messageId)
+        .eq("user_id", userId)
+        .eq("emoji", params.emoji);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["messages", matchId] });
+    },
+  });
+}
+
+// ============================================================
+// ICEBREAKER HOOKS
+// ============================================================
+
+export type IcebreakerPrompt = {
+  id: string;
+  prompt_text: string;
+};
+
+export type UserIcebreaker = {
+  id: string;
+  user_id: string;
+  prompt_id: string;
+  answer: string;
+  prompt: { prompt_text: string };
+};
+
+export function useIcebreakerPrompts() {
+  return useQuery({
+    queryKey: ["icebreakerPrompts"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("icebreaker_prompts")
+        .select("*")
+        .order("prompt_text", { ascending: true });
+      if (error) throw error;
+      return data as IcebreakerPrompt[];
+    },
+  });
+}
+
+export function useUserIcebreakers(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["userIcebreakers", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_icebreakers")
+        .select(`
+          id, user_id, prompt_id, answer,
+          prompt:icebreaker_prompts(prompt_text)
+        `)
+        .eq("user_id", userId!);
+      if (error) throw error;
+      return (data ?? []) as unknown as UserIcebreaker[];
+    },
+  });
+}
+
+export function useSaveUserIcebreaker(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: { promptId: string; answer: string }) => {
+      if (!userId) throw new Error("Not signed in");
+      const { data, error } = await supabase
+        .from("user_icebreakers")
+        .upsert({
+          user_id: userId,
+          prompt_id: params.promptId,
+          answer: params.answer,
+        }, { onConflict: "user_id,prompt_id" })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["userIcebreakers", userId] });
+    },
+  });
+}
+
+export function useDeleteUserIcebreaker(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase
+        .from("user_icebreakers")
+        .delete()
+        .eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["userIcebreakers", userId] });
+    },
+  });
+}
+
+export function useMutualSparks(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["mutualSparks", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data: mySparks, error: myErr } = await supabase
+        .from("sparks")
+        .select("match_id, target_user_id, target:users!sparks_target_user_id_fkey(id, name, photo_url)")
+        .eq("user_id", userId!)
+        .eq("sparked", true);
+      if (myErr) throw myErr;
+
+      const { data: theirSparks, error: theirErr } = await supabase
+        .from("sparks")
+        .select("match_id, user_id")
+        .eq("target_user_id", userId!)
+        .eq("sparked", true);
+      if (theirErr) throw theirErr;
+
+      const mutual = (mySparks ?? []).filter((s) => 
+        (theirSparks ?? []).some((ts) => ts.match_id === s.match_id && ts.user_id === s.target_user_id)
+      );
+
+      return mutual.map((m) => ({
+        matchId: m.match_id,
+        user: m.target as unknown as { id: string; name: string; photo_url: string | null }
+      }));
+    }
+  });
+}
+
+export function useRestaurants(city: string | null | undefined) {
+  return useQuery({
+    queryKey: ["restaurants", city ?? "_all"],
+    queryFn: async () => {
+      let query = supabase
+        .from("restaurants")
+        .select("id, name, neighborhood, city, cuisine")
+        .eq("is_active", true);
+      if (city) {
+        query = query.eq("city", city);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as Restaurant[];
+    }
+  });
+}
+
+
+
 
 

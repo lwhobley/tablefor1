@@ -1,4 +1,4 @@
-import { ActivityIndicator, FlatList, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Pressable, Text, View, Alert } from "react-native";
 import { useRouter } from "expo-router";
 import { Screen } from "../../components/Screen";
 import { useAuth } from "../../lib/auth";
@@ -7,6 +7,9 @@ import {
   useUpcomingEvents,
   useStreak,
   useMyWaitlistNotifications,
+  useRouletteOptInStatus,
+  useOptInRoulette,
+  useOptOutRoulette,
   type EventWithRestaurant,
   type WaitlistNotification,
 } from "../../lib/queries";
@@ -108,6 +111,108 @@ function EmptyState({ city }: { city: string | null | undefined }) {
   );
 }
 
+function RouletteBanner({ profile, userId }: { profile: any; userId: string | undefined }) {
+  const router = useRouter();
+  const dateString = new Date().toISOString().split("T")[0];
+  const { data: optIn } = useRouletteOptInStatus(userId, dateString);
+  const optInRoulette = useOptInRoulette(userId);
+  const optOutRoulette = useOptOutRoulette(userId);
+
+  if (!profile) return null;
+
+  const isPremium = !!profile.is_premium;
+
+  const handleToggle = async () => {
+    if (optIn && optIn.status === "matched") {
+      router.push("/bookings");
+      return;
+    }
+
+    if (!isPremium) {
+      Alert.alert(
+        "Premium Feature", 
+        "Upgrade to Premium to participate in Dinner Roulette and get auto-booked at tables with open seats!",
+        [
+          { text: "Cancel", style: "cancel" },
+          { text: "Upgrade", onPress: () => router.push("/profile") }
+        ]
+      );
+      return;
+    }
+
+    try {
+      if (optIn) {
+        await optOutRoulette.mutateAsync(dateString);
+        Alert.alert("Opted Out", "You opted out of Dinner Roulette for tonight.");
+      } else {
+        await optInRoulette.mutateAsync({ city: profile.city, date: dateString });
+        Alert.alert("Opted In!", "You are opted in! We'll search for open tables tonight and match you by 5 PM.");
+      }
+    } catch (err) {
+      Alert.alert("Error", (err as Error).message);
+    }
+  };
+
+  return (
+    <Pressable
+      onPress={handleToggle}
+      className={`mb-3 rounded-2xl border p-4 active:opacity-90 ${
+        optIn
+          ? optIn.status === "matched"
+            ? "border-emerald-300 bg-emerald-50/50"
+            : "border-rust/30 bg-rust/5"
+          : "border-purple-350/20 bg-purple-50/10"
+      }`}
+    >
+      <View className="flex-row items-center justify-between">
+        <View className="flex-row items-center gap-3 flex-1 pr-2">
+          <Ionicons
+            name={optIn ? (optIn.status === "matched" ? "checkmark-circle-outline" : "hourglass-outline") : "help-circle-outline"}
+            size={22}
+            color={optIn ? (optIn.status === "matched" ? "#10B981" : "#C2410C") : "#8B5CF6"}
+          />
+          <View className="flex-1">
+            <Text className="font-semibold text-ink">
+              {optIn
+                ? optIn.status === "matched"
+                  ? "Roulette Table Booked!"
+                  : "Roulette Search Active"
+                : "Tonight's Dinner Roulette"}
+            </Text>
+            <Text className="text-xs text-ink/60 mt-0.5 leading-4">
+              {optIn
+                ? optIn.status === "matched"
+                  ? "We booked you a seat! Tap to view details in Bookings."
+                  : "We're searching for open seats tonight. We'll book you by 5 PM."
+                : "Spontaneous tonight? Join Dinner Roulette. We'll auto-book you if seats open."}
+            </Text>
+          </View>
+        </View>
+        <View className="flex-row items-center gap-1.5">
+          {!isPremium && (
+            <View className="rounded-full bg-purple-100 border border-purple-200 px-2 py-0.5">
+              <Text className="text-[9px] font-bold text-purple-700 uppercase">Premium</Text>
+            </View>
+          )}
+          <View
+            className={`rounded-full px-3 py-1.5 ${
+              optIn
+                ? optIn.status === "matched"
+                  ? "bg-emerald-600"
+                  : "bg-ink/10"
+                : "bg-rust"
+            }`}
+          >
+            <Text className={`text-xs font-bold ${optIn && optIn.status !== "matched" ? "text-ink/80" : "text-white"}`}>
+              {optIn ? (optIn.status === "matched" ? "View" : "Leave") : "Join"}
+            </Text>
+          </View>
+        </View>
+      </View>
+    </Pressable>
+  );
+}
+
 function StoriesCTA() {
   const router = useRouter();
   return (
@@ -162,6 +267,7 @@ export default function Home() {
               {(waitlistNotifications ?? []).map((entry: WaitlistNotification) => (
                 <WaitlistBanner key={entry.id} entry={entry} />
               ))}
+              <RouletteBanner profile={profile} userId={session?.user.id} />
               <StoriesCTA />
             </View>
           }
