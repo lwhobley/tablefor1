@@ -12,10 +12,10 @@ interface ProfileModalProps {
 }
 
 export function ProfileModal({ visible, onClose, diner }: ProfileModalProps) {
-  if (!diner) return null;
+  const { data: userIcebreakers, isLoading: icebreakersLoading } = useUserIcebreakers(diner?.id);
+  const { data: badges } = useBadges(diner?.id);
 
-  const { data: userIcebreakers, isLoading: icebreakersLoading } = useUserIcebreakers(diner.id);
-  const { data: badges } = useBadges(diner.id);
+  if (!diner) return null;
 
   // Capitalize helpers
   const formatText = (text: string) => {

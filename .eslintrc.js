@@ -7,6 +7,8 @@ module.exports = {
     // import resolver understands. They're type-checked by `deno check`
     // and unit-tested by `deno test` in CI instead of this ESLint config.
     'supabase/functions/**',
+    'dist/**',
+    '.expo/**',
   ],
   overrides: [
     {

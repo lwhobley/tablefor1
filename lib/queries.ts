@@ -265,7 +265,7 @@ export function useMatchMessages(matchId: string | undefined) {
         .eq("match_id", matchId!)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as unknown as (Message & { sender: Profile; reactions: Array<{ id: string; emoji: string; user_id: string; user: { name: string } }> })[];
+      return (data ?? []) as unknown as (Message & { sender: Profile; reactions: { id: string; emoji: string; user_id: string; user: { name: string } }[] })[];
     },
   });
 }

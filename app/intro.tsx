@@ -70,7 +70,7 @@ export default function IntroScreen() {
         useNativeDriver: true,
       }).start();
     }
-  }, [step]);
+  }, [step, fadeAnim, titleFadeAnim]);
 
   const handleSkip = () => {
     setStep(3);
