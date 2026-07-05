@@ -105,31 +105,22 @@ export default function IntroScreen() {
           </Pressable>
         ) : (
           <Animated.View
-            style={{ opacity: titleFadeAnim }}
-            className="flex-1 w-full justify-center px-8 gap-12 bg-stone-950"
+            style={{ opacity: titleFadeAnim, flex: 1, width: "100%", height: "100%" }}
           >
-            <View className="gap-5">
-              <View className="flex-row items-center gap-1.5">
-                <Text className="text-xs font-bold uppercase tracking-widest text-amber-500/70">
-                  INTRODUCING
-                </Text>
-              </View>
-              
-              <View className="gap-1.5">
-                <Text className="font-serif text-5xl text-stone-100">
-                  Table <Text className="text-amber-500 font-bold">FOR 2</Text>
-                </Text>
-                <Text className="text-base text-stone-400 leading-7 mt-2">
-                  Curated dining pairings. Meet strangers, share incredible stories, and make authentic connections over a shared table.
-                </Text>
-              </View>
-            </View>
+            {/* Full-bleed logo background */}
+            <Image
+              source={require("../assets/images/intro_logo.png")}
+              style={{ width: "100%", height: "100%", resizeMode: "cover", position: "absolute" }}
+            />
 
-            <View className="gap-3 mt-4">
-              <Button
-                label="Get Started"
-                onPress={() => router.replace("/(auth)/login")}
-              />
+            {/* Bottom overlay with button */}
+            <View className="flex-1 justify-end items-center pb-16 px-8">
+              <View className="w-full gap-3">
+                <Button
+                  label="Get Started"
+                  onPress={() => router.replace("/(auth)/login")}
+                />
+              </View>
             </View>
           </Animated.View>
         )}
