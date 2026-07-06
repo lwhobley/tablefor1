@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
           price_data: {
             currency: "usd",
             recurring: { interval: "month" },
-            product_data: { name: "Table for One Premium" },
+            product_data: { name: "Table for 2 Premium" },
             unit_amount: PREMIUM_PRICE_CENTS,
           },
           quantity: 1,

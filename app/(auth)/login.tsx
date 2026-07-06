@@ -46,7 +46,7 @@ export default function Login() {
     <Screen>
       <View className="flex-1 justify-center gap-8">
         <View className="gap-2">
-          <Text className="font-serif text-4xl text-ink">Table for One</Text>
+          <Text className="font-serif text-4xl text-ink">Table for 2</Text>
           <Text className="text-base text-ink/60">
             Curated dinners with new friends.
           </Text>

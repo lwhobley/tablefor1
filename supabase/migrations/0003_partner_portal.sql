@@ -1,5 +1,5 @@
 -- ============================================================
--- TABLE FOR ONE — Partner portal helpers
+-- TABLE FOR 2 — Partner portal helpers
 -- ============================================================
 -- Adds:
 --   * an UPDATE policy so partners can edit their own restaurant row

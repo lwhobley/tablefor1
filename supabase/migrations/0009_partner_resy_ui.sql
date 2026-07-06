@@ -1,9 +1,11 @@
 -- ============================================================
--- TABLE FOR ONE — Resy Settings & Booking Controls for Partners
+-- TABLE FOR 2 — Resy Settings & Booking Controls for Partners
 -- ============================================================
 
 -- ---------- partner_upcoming_events() redefinition ----------
 -- Redefines the RPC to return Resy status, token, and error fields.
+drop function if exists public.partner_upcoming_events();
+
 create or replace function public.partner_upcoming_events()
 returns table (
   event_id uuid,

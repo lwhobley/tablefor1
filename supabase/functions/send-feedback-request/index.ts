@@ -47,7 +47,7 @@ function generateFeedbackRequestEmail(
           </div>
 
           <div style="text-align: center;">
-            <a href="https://tableforone.app/feedback/${matchId}" class="cta">Leave Feedback</a>
+            <a href="https://tablefor2.app/feedback/${matchId}" class="cta">Leave Feedback</a>
           </div>
 
           <div style="background: #f5f5f4; padding: 16px; border-radius: 8px; margin-top: 20px;">
@@ -61,7 +61,7 @@ function generateFeedbackRequestEmail(
 
           <div class="footer">
             <p>Questions? Reply to this email or visit our website.</p>
-            <p>© Table for One</p>
+            <p>© Table for 2</p>
           </div>
         </div>
       </body>
@@ -197,7 +197,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           from: adminEmail,
           to: toEmail,
-          subject: "How was your dinner at Table for One?",
+          subject: "How was your dinner at Table for 2?",
           html: htmlContent,
         }),
       });

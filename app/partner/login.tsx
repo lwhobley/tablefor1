@@ -10,7 +10,7 @@ function redirectUrl() {
   if (typeof window !== "undefined") {
     return `${window.location.origin}/partner/dashboard`;
   }
-  return Constants.linkingUri ?? "tablefor1://partner/dashboard";
+  return Constants.linkingUri ?? "tablefor2://partner/dashboard";
 }
 
 export default function PartnerLogin() {

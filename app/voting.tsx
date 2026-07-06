@@ -52,7 +52,7 @@ export default function VotingScreen() {
           </Pressable>
           <View>
             <Text className="font-serif text-2xl text-ink">City Expansion</Text>
-            <Text className="text-xs text-ink/50">Pledge to bring Table for One to your city</Text>
+            <Text className="text-xs text-ink/50">Pledge to bring Table for 2 to your city</Text>
           </View>
         </View>
 

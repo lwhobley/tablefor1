@@ -1,5 +1,5 @@
 -- ============================================================
--- TABLE FOR ONE -- Phase 2 RLS policies
+-- TABLE FOR 2 -- Phase 2 RLS policies
 -- ============================================================
 -- Two gaps the Phase 2 app code depends on but 0001 never granted:
 --   1. Diners can cancel their own still-pending booking.

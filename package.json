@@ -1,5 +1,5 @@
 {
-  "name": "table-for-one",
+  "name": "table-for-2",
   "version": "0.1.0",
   "private": true,
   "main": "expo-router/entry",
@@ -20,7 +20,8 @@
     "@tanstack/react-query": "^5.51.23",
     "expo": "~51.0.28",
     "expo-constants": "~16.0.2",
-    "expo-image-picker": "~15.0.7",
+    "expo-font": "~12.0.10",
+    "expo-image-picker": "~15.1.0",
     "expo-linking": "~6.3.1",
     "expo-router": "~3.5.23",
     "expo-status-bar": "~1.12.1",

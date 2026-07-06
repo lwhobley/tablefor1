@@ -1,5 +1,5 @@
 -- ============================================================
--- TABLE FOR ONE -- Storage bucket for profile photos
+-- TABLE FOR 2 -- Storage bucket for profile photos
 -- ============================================================
 -- Apply this after 0001_init.sql. Files live at userId/avatar-TIMESTAMP.ext
 -- (see lib/uploadAvatar.ts); the policies below scope writes to the

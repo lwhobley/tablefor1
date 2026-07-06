@@ -92,12 +92,12 @@ async function generateMatchRevealEmail(
           </div>
 
           <div style="text-align: center;">
-            <a href="https://tableforone.app/matches/${encodeURIComponent(matchId)}" class="cta">View Full Profiles & Message</a>
+            <a href="https://tablefor2.app/matches/${encodeURIComponent(matchId)}" class="cta">View Full Profiles & Message</a>
           </div>
 
           <div class="footer">
             <p>Questions? Reply to this email or visit our website.</p>
-            <p>© Table for One</p>
+            <p>© Table for 2</p>
           </div>
         </div>
       </body>
@@ -236,7 +236,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           from: adminEmail,
           to: toEmail,
-          subject: `Your dinner match is here! Meet your group at ${restaurant?.name || "Table for One"}`.replace(/[\r\n]+/g, " "),
+          subject: `Your dinner match is here! Meet your group at ${restaurant?.name || "Table for 2"}`.replace(/[\r\n]+/g, " "),
           html: htmlContent,
         }),
       });

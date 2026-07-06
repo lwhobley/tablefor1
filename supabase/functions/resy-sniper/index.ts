@@ -70,7 +70,7 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      // Convert event date to Central Time (Texas timezone where Table for One operates)
+      // Convert event date to Central Time (Texas timezone where Table for 2 operates)
       const dateOptions = { timeZone: 'America/Chicago', year: 'numeric', month: '2-digit', day: '2-digit' } as const;
       const timeOptions = { timeZone: 'America/Chicago', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false } as const;
 

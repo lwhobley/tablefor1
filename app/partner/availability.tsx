@@ -95,7 +95,7 @@ export default function PartnerAvailability() {
           </View>
         </View>
         <Field
-          label="Max Table for One covers"
+          label="Max Table for 2 covers"
           value={maxCovers}
           onChangeText={setMaxCovers}
           placeholder="4"

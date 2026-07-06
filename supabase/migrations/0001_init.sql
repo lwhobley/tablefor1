@@ -1,5 +1,5 @@
 -- ============================================================
--- TABLE FOR ONE — Supabase Schema + RLS Policies
+-- TABLE FOR 2 — Supabase Schema + RLS Policies
 -- Stack: Postgres 15, Supabase Auth, Row Level Security
 -- ============================================================
 

@@ -373,9 +373,9 @@ export default function EventDetail() {
                   label="Share Invite Link"
                   variant="secondary"
                   onPress={() => {
-                    const appUrl = "https://tableforone.app";
+                    const appUrl = "https://tablefor2.app";
                     Share.share({
-                      message: `Join my dinner table at Table for One! Use my invite code: ${myInvite.invite_code} or click this link to skip the waitlist: ${appUrl}/events/${id}?invite_code=${myInvite.invite_code}`
+                      message: `Join my dinner table at Table for 2! Use my invite code: ${myInvite.invite_code} or click this link to skip the waitlist: ${appUrl}/events/${id}?invite_code=${myInvite.invite_code}`
                     });
                   }}
                 />

@@ -609,7 +609,7 @@ export default function ProfileScreen() {
             <Text className="font-serif text-lg text-ink">City Expansion Voting</Text>
           </View>
           <Text className="text-sm text-ink/60 leading-5">
-            Want Table for One in another city? Pledge your interest and help us decide which city to launch next!
+            Want Table for 2 in another city? Pledge your interest and help us decide which city to launch next!
           </Text>
           <Button
             label="Vote for Next City"

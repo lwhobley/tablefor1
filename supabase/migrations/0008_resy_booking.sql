@@ -1,5 +1,5 @@
 -- ============================================================
--- TABLE FOR ONE — Resy Reservation Booking Integration
+-- TABLE FOR 2 — Resy Reservation Booking Integration
 -- ============================================================
 
 -- ---------- restaurants: add resy_venue_id ----------

@@ -44,7 +44,7 @@ export default function PartnerLayout() {
           <Text className="text-base text-ink/60">
             We don't have a restaurant registered under{" "}
             <Text className="font-semibold text-ink">{session.user.email}</Text>.
-            Email hello@tableforone.app and we'll get you set up.
+            Email hello@tablefor2.app and we'll get you set up.
           </Text>
           <Button label="Sign out" variant="ghost" onPress={signOut} />
         </View>

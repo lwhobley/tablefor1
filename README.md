@@ -1,4 +1,4 @@
-# Table for One
+# Table for 2
 
 Curated solo-diner dinners. Mobile-first web app built with Expo Router,
 Supabase, NativeWind, and React Query. This repo currently ships **Phase 1**:

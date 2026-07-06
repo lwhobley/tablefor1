@@ -60,7 +60,7 @@ function bookingConfirmationHtml(
               Hi ${escapeHtml(userName)}, you'll be matched with other solo diners <strong>24 hours before</strong> your dinner.
             </p>
           </div>
-          <p style="color: #8c7f73; font-size: 12px; margin-top: 20px;">© Table for One</p>
+          <p style="color: #8c7f73; font-size: 12px; margin-top: 20px;">© Table for 2</p>
         </div>
       </body>
     </html>
@@ -121,7 +121,7 @@ Deno.serve(async (req) => {
       restaurant: { name?: string } | null;
     };
     const restaurantName = event?.restaurant?.name ?? "Exclusive Restaurant";
-    const safeRestaurantSubject = sanitizeEmailHeader(restaurantName || "Table for One");
+    const safeRestaurantSubject = sanitizeEmailHeader(restaurantName || "Table for 2");
 
     const html = bookingConfirmationHtml(
       user?.name ?? "Guest",
