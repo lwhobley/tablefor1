@@ -1,6 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
-import { isAuthorizedAdminCaller } from "../_shared/admin.ts";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -37,10 +36,21 @@ Deno.serve(async (req) => {
       return json({ error: "Missing required parameters" }, 400);
     }
 
+    const eventDate = new Date(event_date);
+    if (!Number.isFinite(eventDate.getTime())) {
+      return json({ error: "Invalid event date" }, 400);
+    }
+
+    const now = new Date();
+    const latestAllowed = new Date(now.getTime() + 90 * 24 * 60 * 60 * 1000);
+    if (eventDate <= now || eventDate > latestAllowed) {
+      return json({ error: "Event date must be in the next 90 days" }, 400);
+    }
+
     // 1. Fetch reconnect request
     const { data: request, error: reqErr } = await admin
       .from("reconnect_requests")
-      .select("id, user_id, target_user_id, status")
+      .select("id, user_id, target_user_id, status, event_id")
       .eq("id", reconnect_request_id)
       .single();
 
@@ -53,14 +63,36 @@ Deno.serve(async (req) => {
       return json({ error: "You are not authorized to book this reconnect dinner" }, 403);
     }
 
+    if (request.status !== "accepted") {
+      return json({ error: "Reconnect request must be accepted before booking" }, 409);
+    }
+
+    if (request.event_id) {
+      return json({ error: "Reconnect dinner has already been scheduled" }, 409);
+    }
+
     // 2. Verify mutual spark
-    const { data: sparkCheck, error: sparkErr } = await admin.rpc("has_mutual_spark", {
-      p_user_a: request.user_id,
-      p_user_b: request.target_user_id,
-    });
+    const { data: sparkRows, error: sparkErr } = await admin
+      .from("sparks")
+      .select("match_id, user_id, target_user_id")
+      .or(
+        `and(user_id.eq.${request.user_id},target_user_id.eq.${request.target_user_id},sparked.eq.true),` +
+          `and(user_id.eq.${request.target_user_id},target_user_id.eq.${request.user_id},sparked.eq.true)`,
+      );
 
     if (sparkErr) throw sparkErr;
-    if (!sparkCheck) {
+    const sparkMatchIds = new Set(
+      (sparkRows ?? [])
+        .filter((row) => row.user_id === request.user_id && row.target_user_id === request.target_user_id)
+        .map((row) => row.match_id),
+    );
+    const hasMutualSpark = (sparkRows ?? []).some(
+      (row) =>
+        row.user_id === request.target_user_id &&
+        row.target_user_id === request.user_id &&
+        sparkMatchIds.has(row.match_id),
+    );
+    if (!hasMutualSpark) {
       return json({ error: "Users do not have a mutual spark" }, 400);
     }
 
@@ -73,12 +105,25 @@ Deno.serve(async (req) => {
 
     if (userErr || !user) throw userErr || new Error("User city not found");
 
+    const { data: restaurant, error: restaurantErr } = await admin
+      .from("restaurants")
+      .select("id, city, is_active")
+      .eq("id", restaurant_id)
+      .single();
+
+    if (restaurantErr || !restaurant) {
+      return json({ error: "Restaurant not found" }, 404);
+    }
+    if (!restaurant.is_active || restaurant.city !== user.city) {
+      return json({ error: "Restaurant is not available for this reconnect dinner" }, 400);
+    }
+
     // 4. Create custom Event
     const { data: event, error: eventErr } = await admin
       .from("events")
       .insert({
         restaurant_id,
-        event_date,
+        event_date: eventDate.toISOString(),
         group_size: 2,
         status: "matched", // already matched!
         city: user.city,

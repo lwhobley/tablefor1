@@ -6,6 +6,19 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { getAuthUserEmail } from "../_shared/users.ts";
 import { isAuthorizedAdminCaller, unauthorizedResponse } from "../_shared/admin.ts";
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function sanitizeEmailHeader(value: unknown): string {
+  return String(value ?? "").replace(/[\r\n]+/g, " ").trim();
+}
+
 function bookingConfirmationHtml(
   userName: string,
   eventDate: string,
@@ -37,14 +50,14 @@ function bookingConfirmationHtml(
           </div>
           <div style="background: #fff; border: 1px solid #f5f5f4; padding: 20px; border-radius: 12px; margin-bottom: 20px;">
             <h2 style="margin: 0 0 20px 0; font-size: 20px;">Dinner Details</h2>
-            <p style="margin: 0 0 8px 0;"><strong>Restaurant:</strong> ${restaurantName}</p>
+            <p style="margin: 0 0 8px 0;"><strong>Restaurant:</strong> ${escapeHtml(restaurantName)}</p>
             <p style="margin: 0 0 8px 0;"><strong>Date &amp; Time:</strong> ${formattedDate} at ${formattedTime}</p>
             <p style="margin: 0 0 8px 0;"><strong>Party Size:</strong> Table of ${groupSize}</p>
             <p style="margin: 0;"><strong>Price per seat:</strong> $${(priceCents / 100).toFixed(2)}</p>
           </div>
           <div style="background: #fef3c7; border: 1px solid #fcd34d; padding: 16px; border-radius: 8px;">
             <p style="margin: 0; font-size: 14px;">
-              Hi ${userName}, you'll be matched with other solo diners <strong>24 hours before</strong> your dinner.
+              Hi ${escapeHtml(userName)}, you'll be matched with other solo diners <strong>24 hours before</strong> your dinner.
             </p>
           </div>
           <p style="color: #8c7f73; font-size: 12px; margin-top: 20px;">© Table for One</p>
@@ -108,6 +121,7 @@ Deno.serve(async (req) => {
       restaurant: { name?: string } | null;
     };
     const restaurantName = event?.restaurant?.name ?? "Exclusive Restaurant";
+    const safeRestaurantSubject = sanitizeEmailHeader(restaurantName || "Table for One");
 
     const html = bookingConfirmationHtml(
       user?.name ?? "Guest",
@@ -127,7 +141,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         from: adminEmail,
         to: userEmail,
-        subject: `Your Table is Booked at ${restaurantName}!`,
+        subject: `Your Table is Booked at ${safeRestaurantSubject}!`,
         html,
       }),
     });

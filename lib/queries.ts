@@ -22,6 +22,7 @@ import {
   type FavoriteRestaurant,
   type RestaurantRecommendation,
 } from "./supabase";
+import { getChatPhotoSignedUrl } from "./uploadChatPhoto";
 
 export function useProfile(userId: string | undefined) {
   return useQuery({
@@ -265,7 +266,23 @@ export function useMatchMessages(matchId: string | undefined) {
         .eq("match_id", matchId!)
         .order("created_at", { ascending: true });
       if (error) throw error;
-      return (data ?? []) as unknown as (Message & { sender: Profile; reactions: { id: string; emoji: string; user_id: string; user: { name: string } }[] })[];
+      const messages = (data ?? []) as unknown as (Message & {
+        sender: Profile;
+        reactions: { id: string; emoji: string; user_id: string; user: { name: string } }[];
+      })[];
+      return Promise.all(
+        messages.map(async (message) => {
+          if (!message.photo_url) return message;
+          try {
+            return {
+              ...message,
+              photo_url: await getChatPhotoSignedUrl(message.photo_url),
+            };
+          } catch {
+            return { ...message, photo_url: null };
+          }
+        }),
+      );
     },
   });
 }

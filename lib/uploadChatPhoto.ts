@@ -1,7 +1,8 @@
 import { supabase } from "./supabase";
 
-// Uploads a chat image (native or web) to the 'chat-photos' bucket.
-// Returns the public URL we send in the message payload.
+// Uploads a chat image (native or web) to the private `chat-photos` bucket.
+// Returns the storage path persisted on the message row. Use
+// getChatPhotoSignedUrl() to display it after message RLS allows the row.
 export async function uploadChatPhoto(
   userId: string,
   source: Blob | { uri: string; mimeType?: string },
@@ -26,6 +27,23 @@ export async function uploadChatPhoto(
     .upload(path, blob, { contentType, upsert: true });
   if (error) throw error;
 
-  const { data } = supabase.storage.from("chat-photos").getPublicUrl(path);
-  return data.publicUrl;
+  return path;
+}
+
+export async function getChatPhotoSignedUrl(
+  pathOrUrl: string,
+  expiresInSeconds = 3600,
+): Promise<string> {
+  const marker = "/chat-photos/";
+  const markerIndex = pathOrUrl.indexOf(marker);
+  const path =
+    markerIndex >= 0
+      ? decodeURIComponent(pathOrUrl.slice(markerIndex + marker.length))
+      : pathOrUrl;
+
+  const { data, error } = await supabase.storage
+    .from("chat-photos")
+    .createSignedUrl(path, expiresInSeconds);
+  if (error) throw error;
+  return data.signedUrl;
 }

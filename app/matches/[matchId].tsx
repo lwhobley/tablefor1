@@ -62,14 +62,14 @@ export default function MatchDetail() {
     
     try {
       setPhotoUploading(true);
-      const publicUrl = await uploadChatPhoto(userId, {
+      const photoPath = await uploadChatPhoto(userId, {
         uri: result.assets[0].uri,
         mimeType: result.assets[0].mimeType ?? undefined,
       });
 
       postMessage.mutate(canPairMessage
-        ? { photoUrl: publicUrl, recipientId: selectedRecipient!.id }
-        : { photoUrl: publicUrl }, {
+        ? { photoUrl: photoPath, recipientId: selectedRecipient!.id }
+        : { photoUrl: photoPath }, {
         onError: (err) => {
           Alert.alert("Couldn't send photo", (err as Error).message);
         },

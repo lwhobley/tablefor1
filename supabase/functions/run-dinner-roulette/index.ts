@@ -2,6 +2,19 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { corsHeaders } from "../_shared/cors.ts";
 import { isAuthorizedAdminCaller, unauthorizedResponse } from "../_shared/admin.ts";
 
+function isPremiumActive(user: { is_premium: boolean; premium_expires_at: string | null }): boolean {
+  return user.is_premium && (!user.premium_expires_at || new Date(user.premium_expires_at) > new Date());
+}
+
+type RouletteUser = {
+  id: string;
+  city: string;
+  is_active: boolean;
+  is_premium: boolean;
+  premium_expires_at: string | null;
+  trust_score: number | null;
+};
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -38,8 +51,31 @@ Deno.serve(async (req) => {
       return json({ success: true, message: "No pending roulette opt-ins for " + targetDate, matched: [] });
     }
 
+    const { data: users, error: usersErr } = await admin
+      .from("users")
+      .select("id, city, is_active, is_premium, premium_expires_at, trust_score")
+      .in("id", optIns.map((optIn) => optIn.user_id));
+
+    if (usersErr) throw usersErr;
+    const usersById = new Map((users ?? []).map((user) => [user.id, user as RouletteUser]));
+
+    const eligibleOptIns = (optIns ?? []).filter((optIn) => {
+      const profile = usersById.get(optIn.user_id);
+      return (
+        profile &&
+        profile.is_active === true &&
+        profile.city === optIn.city &&
+        (profile.trust_score ?? 0) >= 70 &&
+        isPremiumActive(profile)
+      );
+    });
+
+    if (eligibleOptIns.length === 0) {
+      return json({ success: true, message: "No pending roulette opt-ins for " + targetDate, matched: [] });
+    }
+
     // Group opt-ins by city
-    const optInsByCity = optIns.reduce((acc: Record<string, typeof optIns>, item) => {
+    const optInsByCity = eligibleOptIns.reduce((acc: Record<string, typeof eligibleOptIns>, item) => {
       acc[item.city] = acc[item.city] || [];
       acc[item.city].push(item);
       return acc;

@@ -2,6 +2,15 @@ import { corsHeaders } from "../_shared/cors.ts";
 import { getAuthUserEmail } from "../_shared/users.ts";
 import { isAuthorizedAdminCaller, unauthorizedResponse } from "../_shared/admin.ts";
 
+function escapeHtml(value: unknown): string {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 function generateFeedbackRequestEmail(
   userName: string,
   matchId: string,
@@ -28,9 +37,9 @@ function generateFeedbackRequestEmail(
           </div>
 
           <div class="details">
-            <p style="margin: 0 0 15px 0;">Hi ${userName},</p>
+            <p style="margin: 0 0 15px 0;">Hi ${escapeHtml(userName)},</p>
             <p style="margin: 0 0 15px 0;">
-              Thank you for joining us for an exclusive dinner at ${restaurantName}! We hope you had an amazing evening and enjoyed meeting your table companions.
+              Thank you for joining us for an exclusive dinner at ${escapeHtml(restaurantName)}! We hope you had an amazing evening and enjoyed meeting your table companions.
             </p>
             <p style="margin: 0;">
               Your feedback helps us improve future dinners and match diners even better. Share your experience—it takes just 2 minutes.
