@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { Text, View, Alert } from "react-native";
+import { Image, Text, View, Alert } from "react-native";
 import * as Linking from "expo-linking";
 import { Screen } from "../../components/Screen";
 import { Field } from "../../components/Field";
 import { Button } from "../../components/Button";
-import { TableFor2Logo } from "../../components/TableFor2Logo";
 import { supabase } from "../../lib/supabase";
 
 export default function Login() {
@@ -51,7 +50,10 @@ export default function Login() {
     <Screen>
       <View className="flex-1 justify-center gap-8">
         <View className="items-start gap-3">
-          <TableFor2Logo width={190} />
+          <Image
+            source={require("../../assets/images/table_for_2_logo.png")}
+            style={{ width: 190, height: 104, resizeMode: "contain" }}
+          />
           <Text className="text-base text-ink/60">
             {mode === "signin"
               ? "Curated dinners with new friends."

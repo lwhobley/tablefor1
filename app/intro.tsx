@@ -3,7 +3,6 @@ import { View, Text, Image, Animated, Pressable, useWindowDimensions } from "rea
 import { useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
-import { TableFor2Logo } from "@/components/TableFor2Logo";
 
 export default function IntroScreen() {
   const router = useRouter();
@@ -85,6 +84,7 @@ export default function IntroScreen() {
     require("../assets/images/intro_table_meeting.png"),
   ];
   const logoWidth = Math.min(width - 48, 360);
+  const logoHeight = logoWidth * (1012 / 1844);
 
   return (
     <Screen scroll={false}>
@@ -111,7 +111,10 @@ export default function IntroScreen() {
             style={{ opacity: titleFadeAnim, flex: 1, width: "100%", height: "100%" }}
           >
             <View className="flex-1 items-center justify-center px-6">
-              <TableFor2Logo width={logoWidth} />
+              <Image
+                source={require("../assets/images/table_for_2_logo.png")}
+                style={{ width: logoWidth, height: logoHeight, resizeMode: "contain" }}
+              />
             </View>
 
             <View className="absolute bottom-0 left-0 right-0 items-center pb-16 px-8">
