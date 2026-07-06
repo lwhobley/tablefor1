@@ -63,6 +63,7 @@ export type Profile = {
   is_premium: boolean;
   premium_expires_at: string | null;
   prefers_window_seat: boolean;
+  welcome_email_sent_at: string | null;
   created_at: string;
   updated_at: string;
 };

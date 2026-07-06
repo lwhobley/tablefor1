@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { Text, View, Alert } from "react-native";
+import * as Linking from "expo-linking";
 import { Screen } from "../../components/Screen";
 import { Field } from "../../components/Field";
 import { Button } from "../../components/Button";
+import { TableFor2Logo } from "../../components/TableFor2Logo";
 import { supabase } from "../../lib/supabase";
 
 export default function Login() {
@@ -26,13 +28,16 @@ export default function Login() {
       const { data, error } = await supabase.auth.signUp({
         email: email.trim(),
         password,
+        options: {
+          emailRedirectTo: Linking.createURL("/auth/callback"),
+        },
       });
       if (error) {
         setError(error.message);
       } else if (data?.user && !data?.session) {
         Alert.alert(
           "Check your email",
-          "If this is a new account, we have sent a verification link. Please check your inbox and click it to confirm your account."
+          "We sent a confirmation link to your inbox. Open it to confirm your account, then your welcome note will follow after you sign in."
         );
       }
     }
@@ -45,10 +50,12 @@ export default function Login() {
   return (
     <Screen>
       <View className="flex-1 justify-center gap-8">
-        <View className="gap-2">
-          <Text className="font-serif text-4xl text-ink">Table for 2</Text>
+        <View className="items-start gap-3">
+          <TableFor2Logo width={190} />
           <Text className="text-base text-ink/60">
-            Curated dinners with new friends.
+            {mode === "signin"
+              ? "Curated dinners with new friends."
+              : "Create your account with email confirmation."}
           </Text>
         </View>
 

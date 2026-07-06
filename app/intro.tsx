@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, Image, Animated, Pressable } from "react-native";
+import { View, Text, Image, Animated, Pressable, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
+import { TableFor2Logo } from "@/components/TableFor2Logo";
 
 export default function IntroScreen() {
   const router = useRouter();
+  const { width } = useWindowDimensions();
   const [step, setStep] = useState(0); // 0: pasta, 1: sushi, 2: meeting, 3: title & login
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -82,6 +84,7 @@ export default function IntroScreen() {
     require("../assets/images/intro_dish_two.png"),
     require("../assets/images/intro_table_meeting.png"),
   ];
+  const logoWidth = Math.min(width - 48, 360);
 
   return (
     <Screen scroll={false}>
@@ -107,14 +110,11 @@ export default function IntroScreen() {
           <Animated.View
             style={{ opacity: titleFadeAnim, flex: 1, width: "100%", height: "100%" }}
           >
-            {/* Full-bleed logo background */}
-            <Image
-              source={require("../assets/images/intro_logo.png")}
-              style={{ width: "100%", height: "100%", resizeMode: "cover", position: "absolute" }}
-            />
+            <View className="flex-1 items-center justify-center px-6">
+              <TableFor2Logo width={logoWidth} />
+            </View>
 
-            {/* Bottom overlay with button */}
-            <View className="flex-1 justify-end items-center pb-16 px-8">
+            <View className="absolute bottom-0 left-0 right-0 items-center pb-16 px-8">
               <View className="w-full gap-3">
                 <Button
                   label="Get Started"

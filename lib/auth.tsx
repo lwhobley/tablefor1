@@ -16,13 +16,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     let mounted = true;
+    const welcomedSessions = new Set<string>();
+
+    const sendWelcomeEmail = async (s: Session | null) => {
+      const sessionKey = s?.access_token;
+      if (!sessionKey || welcomedSessions.has(sessionKey)) return;
+      welcomedSessions.add(sessionKey);
+
+      const { error } = await supabase.functions.invoke("send-welcome-email");
+      if (error) {
+        console.warn("[auth] Failed to send welcome email", error.message);
+        welcomedSessions.delete(sessionKey);
+      }
+    };
+
     supabase.auth.getSession().then(({ data }) => {
       if (!mounted) return;
       setSession(data.session);
       setLoading(false);
+      void sendWelcomeEmail(data.session);
     });
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
+      if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+        void sendWelcomeEmail(s);
+      }
     });
     return () => {
       mounted = false;
