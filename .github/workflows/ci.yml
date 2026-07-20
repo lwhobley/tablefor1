@@ -32,7 +32,7 @@ jobs:
         run: |
           for f in supabase/functions/*/index.ts; do
             echo "Checking $f"
-            deno check "$f"
+            deno check --config supabase/functions/deno.json "$f"
           done
       - name: deno test
-        run: deno test supabase/functions
+        run: deno test --config supabase/functions/deno.json supabase/functions
