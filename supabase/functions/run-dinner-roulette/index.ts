@@ -9,6 +9,7 @@ function isPremiumActive(user: { is_premium: boolean; premium_expires_at: string
 type RouletteUser = {
   id: string;
   city: string;
+  travel_city: string | null;
   is_active: boolean;
   is_premium: boolean;
   premium_expires_at: string | null;
@@ -42,7 +43,7 @@ Deno.serve(async (req) => {
     // 1. Fetch pending roulette opt-ins
     const { data: optIns, error: optInErr } = await admin
       .from("roulette_opt_ins")
-      .select("id, user_id, city")
+      .select("id, user_id, city, preferred_event_id, passed_event_ids")
       .eq("date", targetDate)
       .eq("status", "pending");
 
@@ -53,7 +54,7 @@ Deno.serve(async (req) => {
 
     const { data: users, error: usersErr } = await admin
       .from("users")
-      .select("id, city, is_active, is_premium, premium_expires_at, trust_score")
+      .select("id, city, travel_city, is_active, is_premium, premium_expires_at, trust_score")
       .in("id", optIns.map((optIn) => optIn.user_id));
 
     if (usersErr) throw usersErr;
@@ -64,7 +65,7 @@ Deno.serve(async (req) => {
       return (
         profile &&
         profile.is_active === true &&
-        profile.city === optIn.city &&
+        (profile.travel_city || profile.city) === optIn.city &&
         (profile.trust_score ?? 0) >= 70 &&
         isPremiumActive(profile)
       );
@@ -87,14 +88,19 @@ Deno.serve(async (req) => {
     for (const city of Object.keys(optInsByCity)) {
       const cityOptIns = optInsByCity[city];
 
-      // 2. Fetch events tonight in this city that have open seats
+      // 2. Fetch open seats over the next two weeks so members can cycle
+      // real alternatives instead of being limited to a single same-day draw.
+      const windowStart = new Date(`${targetDate}T00:00:00Z`);
+      const windowEnd = new Date(windowStart);
+      windowEnd.setUTCDate(windowEnd.getUTCDate() + 14);
       const { data: events, error: eventErr } = await admin
         .from("events")
-        .select("id, group_size, status, bookings(id, status, user_id)")
+        .select("id, event_date, group_size, status, bookings(id, status, user_id)")
         .eq("city", city)
-        .gte("event_date", `${targetDate}T00:00:00Z`)
-        .lte("event_date", `${targetDate}T23:59:59Z`)
-        .in("status", ["open", "matched"]);
+        .gte("event_date", windowStart.toISOString())
+        .lte("event_date", windowEnd.toISOString())
+        .in("status", ["open", "matched"])
+        .order("event_date", { ascending: true });
 
       if (eventErr) throw eventErr;
       if (!events || events.length === 0) {
@@ -116,8 +122,16 @@ Deno.serve(async (req) => {
 
       // 3. Match each user to an available table
       for (const optIn of cityOptIns) {
-        // Find first event with spots left where user is not already booked
-        const event = activeEvents.find((e) => e.spotsLeft > 0 && !e.bookingUserIds.includes(optIn.user_id));
+        const isEligible = (event: (typeof activeEvents)[number]) =>
+          event.spotsLeft > 0 && !event.bookingUserIds.includes(optIn.user_id);
+        const preferred = activeEvents.find(
+          (event) => event.id === optIn.preferred_event_id && isEligible(event),
+        );
+        const passedIds = new Set<string>(optIn.passed_event_ids ?? []);
+        const unpassed = activeEvents.find(
+          (event) => !passedIds.has(event.id) && isEligible(event),
+        );
+        const event = preferred ?? unpassed ?? activeEvents.find(isEligible);
         if (!event) continue; // No available table for this diner
 
         // 4. Create confirmed booking

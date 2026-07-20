@@ -1200,6 +1200,14 @@ export function useSubmitRestaurantRecommendation(userId: string | undefined) {
 // DINNER ROULETTE HOOKS
 // ============================================================
 
+export type RouletteOptIn = {
+  id: string;
+  status: "pending" | "matched" | "expired";
+  booking_id: string | null;
+  preferred_event_id: string | null;
+  passed_event_ids: string[];
+};
+
 export function useRouletteOptInStatus(userId: string | undefined, dateString: string) {
   return useQuery({
     queryKey: ["rouletteOptIn", userId, dateString],
@@ -1207,12 +1215,12 @@ export function useRouletteOptInStatus(userId: string | undefined, dateString: s
     queryFn: async () => {
       const { data, error } = await supabase
         .from("roulette_opt_ins")
-        .select("id, status, booking_id")
+        .select("id, status, booking_id, preferred_event_id, passed_event_ids")
         .eq("user_id", userId!)
         .eq("date", dateString)
         .maybeSingle();
       if (error) throw error;
-      return data as { id: string; status: "pending" | "matched" | "expired"; booking_id: string | null } | null;
+      return data as RouletteOptIn | null;
     },
   });
 }
@@ -1220,7 +1228,7 @@ export function useRouletteOptInStatus(userId: string | undefined, dateString: s
 export function useOptInRoulette(userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (params: { city: string; date: string }) => {
+    mutationFn: async (params: { city: string; date: string; preferredEventId?: string }) => {
       if (!userId) throw new Error("Not signed in");
       const { data, error } = await supabase
         .from("roulette_opt_ins")
@@ -1229,6 +1237,7 @@ export function useOptInRoulette(userId: string | undefined) {
           city: params.city,
           date: params.date,
           status: "pending",
+          preferred_event_id: params.preferredEventId ?? null,
         })
         .select()
         .single();
@@ -1237,6 +1246,43 @@ export function useOptInRoulette(userId: string | undefined) {
     },
     onSuccess: (_, variables) => {
       qc.invalidateQueries({ queryKey: ["rouletteOptIn", userId, variables.date] });
+    },
+  });
+}
+
+export function useCycleRouletteOption(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      optInId,
+      date,
+      currentEventId,
+      nextEventId,
+      passedEventIds,
+    }: {
+      optInId: string;
+      date: string;
+      currentEventId?: string;
+      nextEventId: string;
+      passedEventIds: string[];
+    }) => {
+      if (!userId) throw new Error("Not signed in");
+      const nextPassed = currentEventId
+        ? [...new Set([...passedEventIds, currentEventId])].filter((id) => id !== nextEventId)
+        : passedEventIds.filter((id) => id !== nextEventId);
+      const { data, error } = await supabase
+        .from("roulette_opt_ins")
+        .update({ preferred_event_id: nextEventId, passed_event_ids: nextPassed })
+        .eq("id", optInId)
+        .eq("user_id", userId)
+        .eq("status", "pending")
+        .select("id, status, booking_id, preferred_event_id, passed_event_ids")
+        .single();
+      if (error) throw error;
+      return { data: data as RouletteOptIn, date };
+    },
+    onSuccess: ({ data, date }) => {
+      qc.setQueryData(["rouletteOptIn", userId, date], data);
     },
   });
 }

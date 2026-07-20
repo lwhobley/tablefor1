@@ -13,7 +13,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "../../components/Screen";
 import { StreakBadge } from "../../components/StreakBadge";
 import { MysteryBadge } from "../../components/MysteryBadge";
-import { getEventArtwork, storyArtwork } from "../../components/event-artwork";
+import {
+  getEventArtwork,
+  homeHeroArtwork,
+  rouletteArtwork,
+  storyArtwork,
+} from "../../components/event-artwork";
 import { useAuth } from "../../lib/auth";
 import {
   useProfile,
@@ -23,6 +28,7 @@ import {
   useRouletteOptInStatus,
   useOptInRoulette,
   useOptOutRoulette,
+  useCycleRouletteOption,
   type EventWithRestaurant,
   type WaitlistNotification,
 } from "../../lib/queries";
@@ -34,7 +40,15 @@ function formatLabel(format: string) {
   return format.replaceAll("_", " ");
 }
 
-function EventCard({ event, profile }: { event: EventWithRestaurant; profile: Profile | undefined }) {
+function EventCard({
+  event,
+  profile,
+  artworkIndex,
+}: {
+  event: EventWithRestaurant;
+  profile: Profile | undefined;
+  artworkIndex: number;
+}) {
   const router = useRouter();
   const isPremium = !!profile?.is_premium;
   const fit = getEventMatchFit(profile, event);
@@ -65,8 +79,9 @@ function EventCard({ event, profile }: { event: EventWithRestaurant; profile: Pr
       className="overflow-hidden rounded-lg border border-ink/10 bg-white active:opacity-90"
     >
       <ImageBackground
-        source={getEventArtwork(event)}
+        source={getEventArtwork(event, artworkIndex)}
         resizeMode="cover"
+        imageStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
         style={{ height: 184 }}
       >
         <View className="flex-1 justify-between p-3">
@@ -191,15 +206,37 @@ function EmptyState({ city }: { city: string | null | undefined }) {
   );
 }
 
-function RouletteBanner({ profile, userId }: { profile: any; userId: string | undefined }) {
+function RouletteBanner({
+  profile,
+  userId,
+  events,
+}: {
+  profile: Profile | undefined;
+  userId: string | undefined;
+  events: EventWithRestaurant[];
+}) {
   const router = useRouter();
   const dateString = new Date().toISOString().split("T")[0];
   const { data: optIn } = useRouletteOptInStatus(userId, dateString);
   const optInRoulette = useOptInRoulette(userId);
   const optOutRoulette = useOptOutRoulette(userId);
+  const cycleOption = useCycleRouletteOption(userId);
 
   if (!profile) return null;
   const isPremium = !!profile.is_premium;
+  const optionWindowEnd = Date.now() + 14 * 24 * 60 * 60 * 1000;
+  const options = events.filter((event) => {
+    const eventTime = new Date(event.event_date).getTime();
+    return eventTime >= Date.now() && eventTime <= optionWindowEnd && (event.spots_left ?? 0) > 0;
+  });
+
+  const isActiveOptIn = optIn?.status === "pending";
+  const candidateIndex = Math.max(
+    0,
+    options.findIndex((event) => event.id === optIn?.preferred_event_id),
+  );
+  const candidate = options[candidateIndex];
+  const nextCandidate = options.length > 1 ? options[(candidateIndex + 1) % options.length] : undefined;
 
   const handleToggle = async () => {
     if (optIn?.status === "matched") {
@@ -218,27 +255,52 @@ function RouletteBanner({ profile, userId }: { profile: any; userId: string | un
       return;
     }
     try {
-      if (optIn) {
-        await optOutRoulette.mutateAsync(dateString);
-        Alert.alert("Opted Out", "You opted out of Dinner Roulette for tonight.");
-      } else {
-        await optInRoulette.mutateAsync({ city: profile.travel_city || profile.city, date: dateString });
-        Alert.alert("You're In", "We'll search for an open table and match you by 5 PM.");
+        if (isActiveOptIn) {
+          await optOutRoulette.mutateAsync(dateString);
+          Alert.alert("Opted Out", "You opted out of Dinner Roulette for tonight.");
+        } else {
+          if (optIn?.status === "expired") {
+            await optOutRoulette.mutateAsync(dateString);
+          }
+          await optInRoulette.mutateAsync({
+          city: profile.travel_city || profile.city,
+          date: dateString,
+          preferredEventId: options[0]?.id,
+        });
+        Alert.alert("You're In", "We'll search upcoming open seats and prioritize the table shown in Roulette.");
       }
     } catch (err) {
       Alert.alert("Error", (err as Error).message);
     }
   };
 
+  const handleCycle = async () => {
+    if (!optIn || !nextCandidate) return;
+    try {
+      await cycleOption.mutateAsync({
+        optInId: optIn.id,
+        date: dateString,
+        currentEventId: candidate?.id,
+        nextEventId: nextCandidate.id,
+        passedEventIds: optIn.passed_event_ids ?? [],
+      });
+    } catch (err) {
+      Alert.alert("Couldn't load another option", (err as Error).message);
+    }
+  };
+
   return (
-    <Pressable
-      onPress={handleToggle}
-      className="rounded-lg bg-ink p-4 active:opacity-90"
+    <ImageBackground
+      source={rouletteArtwork}
+      resizeMode="cover"
+      imageStyle={{ borderRadius: 8, width: "100%", height: "100%", objectFit: "cover" }}
+      className="overflow-hidden rounded-lg"
     >
+      <View className="gap-4 rounded-lg bg-black/70 p-4">
       <View className="flex-row items-center gap-3">
         <View className="h-11 w-11 items-center justify-center rounded-full bg-white/10">
           <Ionicons
-            name={optIn?.status === "matched" ? "checkmark" : optIn ? "hourglass" : "shuffle"}
+              name={optIn?.status === "matched" ? "checkmark" : isActiveOptIn ? "hourglass" : "shuffle"}
             size={21}
             color="#FFFFFF"
           />
@@ -248,7 +310,7 @@ function RouletteBanner({ profile, userId }: { profile: any; userId: string | un
             <Text className="font-semibold text-white">
               {optIn?.status === "matched"
                 ? "Your roulette table is ready"
-                : optIn
+                  : isActiveOptIn
                   ? "Roulette search is active"
                   : "Tonight's Dinner Roulette"}
             </Text>
@@ -261,18 +323,83 @@ function RouletteBanner({ profile, userId }: { profile: any; userId: string | un
           <Text className="text-xs leading-4 text-white/65">
             {optIn?.status === "matched"
               ? "Tap to see the booking."
-              : optIn
+                : isActiveOptIn
                 ? "We're looking for the right open seat."
                 : "Feeling spontaneous? Let us choose the table."}
           </Text>
         </View>
-        <View className="rounded-full bg-white px-3 py-1.5">
-          <Text className="text-xs font-bold text-ink">
-            {optIn ? (optIn.status === "matched" ? "View" : "Leave") : "Join"}
-          </Text>
-        </View>
+          {(!isActiveOptIn || optIn?.status === "matched") && (
+            <Pressable onPress={handleToggle} className="rounded-full bg-white px-3 py-2 active:opacity-75">
+              <Text className="text-xs font-bold text-ink">{optIn?.status === "matched" ? "View" : "Join"}</Text>
+          </Pressable>
+        )}
       </View>
-    </Pressable>
+
+      {optIn?.status === "pending" && candidate && (
+        <View className="gap-3 border-t border-white/15 pt-4">
+          <View className="flex-row items-start justify-between gap-3">
+            <View className="flex-1 gap-1">
+              <Text className="text-[10px] font-bold uppercase text-white/55">Current option</Text>
+              <Text className="font-serif text-lg text-white">
+                {candidate.theme ?? candidate.restaurant?.name ?? "Curated dinner"}
+              </Text>
+              <Text className="text-xs text-white/65">
+                {new Date(candidate.event_date).toLocaleDateString(undefined, {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  })} | {candidate.restaurant?.neighborhood ?? candidate.city} | ${(candidate.price_cents / 100).toFixed(0)}
+              </Text>
+            </View>
+            <Pressable
+              accessibilityLabel="View current Roulette option"
+              onPress={() => router.push(`/events/${candidate.id}`)}
+              className="h-10 w-10 items-center justify-center rounded-full bg-white/10 active:bg-white/20"
+            >
+              <Ionicons name="open-outline" size={18} color="#FFFFFF" />
+            </Pressable>
+          </View>
+
+          <View className="flex-row gap-2">
+            <Pressable
+              onPress={handleCycle}
+              disabled={!nextCandidate || cycleOption.isPending}
+              className="flex-1 flex-row items-center justify-center gap-2 rounded-lg bg-white px-3 py-3 active:opacity-80 disabled:opacity-40"
+            >
+              {cycleOption.isPending ? (
+                <ActivityIndicator size="small" color="#17201C" />
+              ) : (
+                <Ionicons name="shuffle" size={17} color="#17201C" />
+              )}
+              <Text className="text-sm font-bold text-ink">Next option</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleToggle}
+              disabled={optOutRoulette.isPending}
+              className="items-center justify-center rounded-lg border border-white/20 px-4 py-3 active:bg-white/10"
+            >
+              <Text className="text-sm font-semibold text-white/75">Leave</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {optIn?.status === "pending" && !candidate && (
+        <View className="flex-row items-center gap-3 border-t border-white/15 pt-4">
+          <Text className="flex-1 text-xs leading-4 text-white/65">
+            No open alternatives are posted for the next two weeks yet. Your search will stay active.
+          </Text>
+          <Pressable
+            onPress={handleToggle}
+            disabled={optOutRoulette.isPending}
+            className="rounded-lg border border-white/20 px-4 py-3 active:bg-white/10"
+          >
+            <Text className="text-sm font-semibold text-white/75">Leave</Text>
+          </Pressable>
+        </View>
+      )}
+      </View>
+    </ImageBackground>
   );
 }
 
@@ -280,7 +407,12 @@ function StoriesCTA() {
   const router = useRouter();
   return (
     <Pressable onPress={() => router.push("/stories")} className="overflow-hidden rounded-lg active:opacity-90">
-      <ImageBackground source={storyArtwork} resizeMode="cover" style={{ height: 128 }}>
+      <ImageBackground
+        source={storyArtwork}
+        resizeMode="cover"
+        imageStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
+        style={{ height: 128 }}
+      >
         <View className="flex-1 flex-row items-end justify-between bg-black/50 p-4">
           <View className="flex-1 gap-1 pr-4">
             <Text className="text-xs font-bold uppercase text-white/75">From the community</Text>
@@ -306,36 +438,50 @@ export default function Home() {
 
   return (
     <Screen scroll={false}>
-      <View className="gap-4 pb-5">
-        <View className="flex-row items-center justify-between gap-3">
-          <View className="flex-row items-center gap-3">
-            <View className="h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-sage/20">
-              {profile?.photo_url ? (
-                <Image source={{ uri: profile.photo_url }} className="h-11 w-11" />
-              ) : (
-                <Ionicons name="person" size={20} color="#1D5A4A" />
-              )}
-            </View>
-            <View>
-              <Text className="text-xs font-semibold uppercase text-muted">Welcome back</Text>
-              <Text className="text-base font-semibold text-ink">{profile?.name ?? "Friend"}</Text>
-            </View>
-          </View>
-          <StreakBadge count={streak?.streak_count ?? 0} />
-        </View>
-
-        <View className="gap-1">
-          <View className="flex-row items-end justify-between gap-3">
-            <Text className="flex-1 font-serif text-3xl text-ink">Upcoming tables</Text>
-            {activeCity && (
-              <View className="mb-1 flex-row items-center gap-1 rounded-full bg-sage/15 px-2.5 py-1">
-                <Ionicons name={profile?.travel_city ? "airplane" : "location"} size={11} color="#1D5A4A" />
-                <Text className="text-xs font-semibold text-forest">{activeCity}</Text>
+      <View className="pb-5">
+        <ImageBackground
+          source={homeHeroArtwork}
+          resizeMode="cover"
+          imageStyle={{ borderRadius: 8, width: "100%", height: "100%", objectFit: "cover" }}
+          style={{ height: 220 }}
+          className="overflow-hidden rounded-lg"
+        >
+          <View className="flex-1 justify-between rounded-lg bg-black/45 p-4">
+            <View className="flex-row items-center justify-between gap-3">
+              <View className="flex-row items-center gap-3">
+                <View className="h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-white/30 bg-white/20">
+                  {profile?.photo_url ? (
+                    <Image source={{ uri: profile.photo_url }} className="h-11 w-11" />
+                  ) : (
+                    <Ionicons name="person" size={20} color="#FFFFFF" />
+                  )}
+                </View>
+                <View>
+                  <Text className="text-xs font-semibold uppercase text-white/70">Welcome back</Text>
+                  <Text className="text-base font-semibold text-white">{profile?.name ?? "Friend"}</Text>
+                </View>
               </View>
-            )}
+              <StreakBadge count={streak?.streak_count ?? 0} />
+            </View>
+
+            <View className="gap-2">
+              {activeCity && (
+                <View className="self-start flex-row items-center gap-1 rounded-full bg-white/90 px-2.5 py-1">
+                  <Ionicons
+                    name={profile?.travel_city ? "airplane" : "location"}
+                    size={11}
+                    color="#1D5A4A"
+                  />
+                  <Text className="text-xs font-semibold text-forest">{activeCity}</Text>
+                </View>
+              )}
+              <Text className="font-serif text-3xl text-white">Upcoming tables</Text>
+              <Text className="max-w-md text-sm leading-5 text-white/80">
+                Curated places, thoughtful matches, one shared table.
+              </Text>
+            </View>
           </View>
-          <Text className="text-sm text-muted">Curated places, thoughtful matches, one shared table.</Text>
-        </View>
+        </ImageBackground>
       </View>
 
       {isLoading ? (
@@ -346,14 +492,16 @@ export default function Home() {
         <FlatList
           data={events ?? []}
           keyExtractor={(event) => event.id}
-          renderItem={({ item }) => <EventCard event={item} profile={profile} />}
+          renderItem={({ item, index }) => (
+            <EventCard event={item} profile={profile} artworkIndex={index} />
+          )}
           ItemSeparatorComponent={() => <View className="h-4" />}
           ListHeaderComponent={
             <View className="gap-3 pb-5">
               {(waitlistNotifications ?? []).map((entry: WaitlistNotification) => (
                 <WaitlistBanner key={entry.id} entry={entry} />
               ))}
-              <RouletteBanner profile={profile} userId={session?.user.id} />
+              <RouletteBanner profile={profile} userId={session?.user.id} events={events ?? []} />
               <StoriesCTA />
               <View className="flex-row items-center justify-between pt-2">
                 <Text className="text-xs font-bold uppercase text-muted">Available experiences</Text>

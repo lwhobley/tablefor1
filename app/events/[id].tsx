@@ -194,7 +194,12 @@ export default function EventDetail() {
         )}
 
         <View className="mb-5 overflow-hidden rounded-lg bg-ink">
-          <ImageBackground source={getEventArtwork(event)} resizeMode="cover" style={{ height: 264 }}>
+          <ImageBackground
+            source={getEventArtwork(event)}
+            resizeMode="cover"
+            imageStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
+            style={{ height: 264 }}
+          >
             <View className="flex-1 justify-between bg-black/25 p-3">
               <View className="flex-row items-start justify-between">
                 <Pressable
