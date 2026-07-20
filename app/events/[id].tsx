@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { View, Text, ScrollView, ActivityIndicator, Alert, Share, Pressable } from "react-native";
+import { View, Text, ScrollView, ActivityIndicator, Alert, Share, Pressable, ImageBackground } from "react-native";
 import { useAuth } from "@/lib/auth";
 import {
   useEventDetails,
@@ -23,6 +23,7 @@ import { MysteryBadge } from "@/components/MysteryBadge";
 import { MenuPreview } from "@/components/MenuPreview";
 import { isMysteryRevealed, priceTier } from "@/lib/mystery";
 import { Ionicons } from "@expo/vector-icons";
+import { getEventArtwork } from "@/components/event-artwork";
 
 export default function EventDetail() {
   const { id, invite_code } = useLocalSearchParams<{ id: string; invite_code?: string }>();
@@ -137,10 +138,14 @@ export default function EventDetail() {
 
   return (
     <Screen scroll={false}>
-      <ScrollView className="flex-1" contentContainerStyle={{ paddingBottom: 24 }}>
+      <ScrollView
+        className="flex-1"
+        contentContainerStyle={{ paddingBottom: 24 }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Invite Code Banner */}
         {invite_code && (
-          <View className="mb-6 rounded-2xl border border-amber-300 bg-amber-50 p-4 gap-2">
+          <View className="mb-6 rounded-lg border border-amber-300 bg-amber-50 p-4 gap-2">
             <View className="flex-row items-center gap-2">
               <Ionicons name="gift-outline" size={20} color="#D97706" />
               <Text className="font-semibold text-amber-800">Bring a Friend Invite</Text>
@@ -162,52 +167,63 @@ export default function EventDetail() {
           </View>
         )}
 
-        {/* Restaurant header */}
-        <View className="mb-8 gap-2">
-          {event.is_mystery && !revealed && (
-            <View className="mb-1 flex-row">
-              <MysteryBadge event={event} />
+        <View className="mb-5 overflow-hidden rounded-lg bg-ink">
+          <ImageBackground source={getEventArtwork(event)} resizeMode="cover" style={{ height: 264 }}>
+            <View className="flex-1 justify-between bg-black/25 p-3">
+              <View className="flex-row items-start justify-between">
+                <Pressable
+                  onPress={() => router.back()}
+                  accessibilityLabel="Go back"
+                  className="h-10 w-10 items-center justify-center rounded-full bg-white/95 active:opacity-70"
+                >
+                  <Ionicons name="arrow-back" size={20} color="#17201C" />
+                </Pressable>
+                <View className="items-end gap-2">
+                  {revealed && event.restaurant_id && (
+                    <Pressable
+                      onPress={handleToggleFavorite}
+                      disabled={toggleFavorite.isPending}
+                      accessibilityLabel={isFavorited ? "Remove from favorites" : "Add to favorites"}
+                      className="h-10 w-10 items-center justify-center rounded-full bg-white/95 active:opacity-70"
+                    >
+                      <Ionicons
+                        name={isFavorited ? "heart" : "heart-outline"}
+                        size={21}
+                        color={isFavorited ? "#B5462D" : "#17201C"}
+                      />
+                    </Pressable>
+                  )}
+                  {event.is_mystery && !revealed && <MysteryBadge event={event} />}
+                </View>
+              </View>
+
+              <View className="gap-2 rounded-md bg-black/70 p-4">
+                <Text className="text-xs font-bold uppercase text-white/70">
+                  {event.format.replace("_", " ")}
+                </Text>
+                <Text className="font-serif text-3xl text-white">
+                  {revealed
+                    ? event.restaurant?.name
+                    : `Mystery Dinner ${priceTier(event.price_cents)}`}
+                </Text>
+                <View className="flex-row items-center gap-2">
+                  <Ionicons name="location-outline" size={15} color="#FFFFFF" />
+                  <Text className="flex-1 text-sm text-white/80">
+                    {revealed
+                      ? event.restaurant?.neighborhood
+                      : `Revealed ${event.reveal_hours_before}h before dinner`}
+                    {event.restaurant?.cuisine?.length
+                      ? ` / ${event.restaurant.cuisine.join(", ")}`
+                      : ""}
+                  </Text>
+                </View>
+              </View>
             </View>
-          )}
-          <View className="flex-row items-center justify-between gap-4">
-            <Text className="font-serif text-3xl text-ink flex-1">
-              {revealed
-                ? event.restaurant?.name
-                : `Mystery Dinner ${priceTier(event.price_cents)}`}
-            </Text>
-            {revealed && event.restaurant_id && (
-              <Pressable
-                onPress={handleToggleFavorite}
-                disabled={toggleFavorite.isPending}
-                className="p-1 active:opacity-50"
-              >
-                <Ionicons
-                  name={isFavorited ? "heart" : "heart-outline"}
-                  size={28}
-                  color={isFavorited ? "#EF4444" : "#8C7F73"}
-                />
-              </Pressable>
-            )}
-          </View>
-          {revealed ? (
-            <View className="flex-row items-center gap-2">
-              <Ionicons name="location-outline" size={18} color="#8C7F73" />
-              <Text className="text-ink/70">{event.restaurant?.neighborhood}</Text>
-            </View>
-          ) : (
-            <Text className="text-ink/70">
-              Exact restaurant revealed {event.reveal_hours_before}h before dinner
-            </Text>
-          )}
-          {event.restaurant?.cuisine && event.restaurant.cuisine.length > 0 && (
-            <Text className="text-ink/70">
-              {event.restaurant.cuisine.join(", ")}
-            </Text>
-          )}
+          </ImageBackground>
         </View>
 
         {/* Event details grid */}
-        <View className="mb-8 rounded-2xl bg-white p-4">
+        <View className="mb-8 rounded-lg border border-ink/10 bg-white p-4">
           <View className="mb-4 flex-row justify-between">
             <View>
               <Text className="mb-1 text-sm font-medium text-ink/60">Date</Text>
@@ -295,7 +311,7 @@ export default function EventDetail() {
 
         {/* Vibe Check CTA */}
         {event.confirmed_covers >= 2 && (
-          <View className="mb-6 gap-2 rounded-2xl border border-rust/20 bg-rust/5 p-4">
+          <View className="mb-6 gap-2 rounded-lg border border-rust/20 bg-rust/5 p-4">
             <View className="flex-row items-center gap-2">
               <Ionicons name="heart-circle-outline" size={20} color="#C2410C" />
               <Text className="font-semibold text-ink">Vibe Check</Text>
@@ -313,7 +329,7 @@ export default function EventDetail() {
 
         {/* Waitlist (no-show insurance) */}
         {isFull && (
-          <View className="mb-6 gap-2 rounded-2xl border border-clay/20 bg-clay/5 p-4">
+          <View className="mb-6 gap-2 rounded-lg border border-clay/20 bg-clay/5 p-4">
             {waitlistEntry ? (
               <>
                 <Text className="font-semibold text-ink">
@@ -352,7 +368,7 @@ export default function EventDetail() {
 
         {/* Invite a Friend Host Section */}
         {isBooked && (
-          <View className="mb-6 gap-3 rounded-2xl border border-amber-300 bg-amber-50/20 p-4">
+          <View className="mb-6 gap-3 rounded-lg border border-amber-300 bg-amber-50/20 p-4">
             <View className="flex-row items-center gap-2">
               <Ionicons name="people-circle-outline" size={22} color="#D97706" />
               <Text className="font-bold text-ink text-base">Bring a +1</Text>
@@ -411,7 +427,7 @@ export default function EventDetail() {
 
         {/* Premium Early Access banner */}
         {isEarlyAccess && (
-          <View className={`mb-6 gap-2 rounded-2xl border p-4 ${isLocked ? "border-amber-300 bg-amber-50" : "border-sage/20 bg-sage/5"}`}>
+          <View className={`mb-6 gap-2 rounded-lg border p-4 ${isLocked ? "border-amber-300 bg-amber-50" : "border-sage/20 bg-sage/5"}`}>
             <View className="flex-row items-center gap-2">
               <Ionicons name={isLocked ? "lock-closed-outline" : "lock-open-outline"} size={20} color={isLocked ? "#D97706" : "#166534"} />
               <Text className="font-semibold text-ink">

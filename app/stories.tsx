@@ -1,15 +1,14 @@
 import { ActivityIndicator, Alert, FlatList, Image, Pressable, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "../components/Screen";
 import { useAuth } from "../lib/auth";
 import { useDinnerStories, useDeleteDinnerStory } from "../lib/queries";
-import { Ionicons } from "@expo/vector-icons";
 
 export default function StoriesScreen() {
   const router = useRouter();
   const { session } = useAuth();
   const userId = session?.user?.id;
-
   const { data: stories, isLoading } = useDinnerStories();
   const deleteStory = useDeleteDinnerStory(userId);
 
@@ -34,7 +33,7 @@ export default function StoriesScreen() {
     return (
       <Screen>
         <View className="flex-1 items-center justify-center">
-          <ActivityIndicator size="large" color="#C2410C" />
+          <ActivityIndicator size="large" color="#1D5A4A" />
         </View>
       </Screen>
     );
@@ -43,26 +42,32 @@ export default function StoriesScreen() {
   return (
     <Screen scroll={false}>
       <View className="flex-1">
-        {/* Header */}
-        <View className="flex-row items-center justify-between pb-4 border-b border-ink/5">
+        <View className="gap-4 pb-5">
           <View className="flex-row items-center gap-3">
-            <Pressable onPress={() => router.back()} className="p-1 active:opacity-50">
-              <Ionicons name="arrow-back" size={24} color="#1F1B16" />
+            <Pressable
+              onPress={() => router.back()}
+              accessibilityLabel="Go back"
+              className="h-10 w-10 items-center justify-center rounded-full bg-white active:opacity-60"
+            >
+              <Ionicons name="arrow-back" size={21} color="#17201C" />
             </Pressable>
-            <View>
-              <Text className="font-serif text-2xl text-ink">Dinner Stories</Text>
-              <Text className="text-xs text-ink/50">BeReal for dining with solo matches</Text>
+            <View className="flex-1">
+              <Text className="text-xs font-bold uppercase text-forest">From tables around the city</Text>
+              <Text className="font-serif text-3xl text-ink">Dinner Stories</Text>
             </View>
           </View>
+          <Text className="max-w-xl text-sm leading-5 text-muted">
+            The meals, conversations, and small moments that turned a reservation into something memorable.
+          </Text>
         </View>
 
-        {/* Stories list */}
         {stories && stories.length > 0 ? (
           <FlatList
             data={stories}
-            keyExtractor={(s) => s.id}
-            contentContainerStyle={{ paddingTop: 16, paddingBottom: 32 }}
-            ItemSeparatorComponent={() => <View className="h-6" />}
+            keyExtractor={(story) => story.id}
+            contentContainerStyle={{ paddingBottom: 32 }}
+            ItemSeparatorComponent={() => <View className="h-5" />}
+            showsVerticalScrollIndicator={false}
             renderItem={({ item }) => {
               const eventDate = item.event ? new Date(item.event.event_date) : null;
               const formattedDate = eventDate
@@ -70,62 +75,57 @@ export default function StoriesScreen() {
                 : "";
 
               return (
-                <View className="overflow-hidden rounded-2xl border border-ink/10 bg-white">
-                  {/* User Profile Info */}
-                  <View className="flex-row items-center justify-between p-4">
+                <View className="overflow-hidden rounded-lg border border-ink/10 bg-white">
+                  <View className="w-full bg-ink/5" style={{ aspectRatio: 4 / 3 }}>
+                    <Image source={{ uri: item.photo_url }} className="h-full w-full" resizeMode="cover" />
+                    {item.is_featured && (
+                      <View className="absolute left-3 top-3 flex-row items-center gap-1 rounded-full bg-black/70 px-2.5 py-1">
+                        <Ionicons name="sparkles" size={11} color="#FFFFFF" />
+                        <Text className="text-[10px] font-bold uppercase text-white">Community favorite</Text>
+                      </View>
+                    )}
+                  </View>
+
+                  <View className="gap-4 p-4">
                     <View className="flex-row items-center gap-3">
-                      <View className="h-10 w-10 items-center justify-center overflow-hidden rounded-full border border-ink/5 bg-ink/5">
+                      <View className="h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-sage/15">
                         {item.user?.photo_url ? (
                           <Image source={{ uri: item.user.photo_url }} className="h-10 w-10" />
                         ) : (
-                          <Ionicons name="person" size={18} color="#8C7F73" />
+                          <Ionicons name="restaurant" size={17} color="#1D5A4A" />
                         )}
                       </View>
-                      <View>
-                        <Text className="font-semibold text-ink text-sm">
+                      <View className="flex-1">
+                        <Text className="text-sm font-semibold text-ink">
                           {item.user?.name ?? item.author_name ?? "Table for 2 Community"}
                         </Text>
-                        <Text className="text-xs text-ink/50">
-                          {item.event?.city ?? "Explore Location"}
+                        <Text className="text-xs text-muted">
+                          {item.event?.city ?? "Community table"} / {formattedDate}
                         </Text>
                       </View>
+                      {item.user_id === userId && (
+                        <Pressable
+                          onPress={() => handleDelete(item.id, item.event_id)}
+                          accessibilityLabel="Delete story"
+                          className="h-9 w-9 items-center justify-center rounded-full bg-ink/5 active:opacity-50"
+                        >
+                          <Ionicons name="trash-outline" size={17} color="#B5462D" />
+                        </Pressable>
+                      )}
                     </View>
 
-                    {item.user_id === userId && (
-                      <Pressable
-                        onPress={() => handleDelete(item.id, item.event_id)}
-                        className="p-1 active:opacity-50"
-                      >
-                        <Ionicons name="trash-outline" size={18} color="#EF4444" />
-                      </Pressable>
-                    )}
-                  </View>
-
-                  {/* Story Image */}
-                  <View className="aspect-square w-full bg-ink/5">
-                    <Image
-                      source={{ uri: item.photo_url }}
-                      className="h-full w-full"
-                      resizeMode="cover"
-                    />
-                  </View>
-
-                  {/* Caption & Event Info */}
-                  <View className="p-4 gap-2">
                     {item.caption && (
-                      <Text className="text-ink text-sm leading-5">
-                        {item.caption}
-                      </Text>
+                      <Text className="font-serif text-lg leading-6 text-ink">{item.caption}</Text>
                     )}
 
-                    <View className="flex-row items-center gap-1.5 border-t border-ink/5 pt-3">
-                      <Ionicons name="restaurant-outline" size={14} color="#8C7F73" />
-                      <Text className="text-xs text-ink/60 leading-4">
-                        Dined at{" "}
+                    <View className="flex-row items-start gap-2 border-t border-ink/10 pt-3">
+                      <Ionicons name="location-outline" size={15} color="#1D5A4A" />
+                      <Text className="flex-1 text-xs leading-4 text-muted">
                         <Text className="font-semibold text-ink">
                           {item.event?.restaurant?.name ?? "Mystery Restaurant"}
-                        </Text>{" "}
-                        ({item.event?.restaurant?.cuisine?.join(", ") ?? "Cuisine TBA"}) · {formattedDate}
+                        </Text>
+                        {" / "}
+                        {item.event?.restaurant?.cuisine?.join(", ") ?? "Cuisine revealed at the table"}
                       </Text>
                     </View>
                   </View>
@@ -134,11 +134,13 @@ export default function StoriesScreen() {
             }}
           />
         ) : (
-          <View className="flex-1 items-center justify-center p-8">
-            <Ionicons name="images-outline" size={48} color="#8C7F73" />
-            <Text className="font-semibold text-ink mt-3">No stories yet</Text>
-            <Text className="text-sm text-ink/50 text-center mt-1">
-              Be the first to share a post-dinner photo from your table!
+          <View className="flex-1 items-center justify-center gap-3 p-8">
+            <View className="h-14 w-14 items-center justify-center rounded-full bg-sage/15">
+              <Ionicons name="images-outline" size={26} color="#1D5A4A" />
+            </View>
+            <Text className="font-serif text-xl text-ink">No stories yet</Text>
+            <Text className="text-center text-sm leading-5 text-muted">
+              The first post-dinner memory shared by the community will appear here.
             </Text>
           </View>
         )}

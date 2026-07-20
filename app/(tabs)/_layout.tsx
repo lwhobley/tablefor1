@@ -6,20 +6,24 @@ export default function TabsLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: "#C2410C",
-        tabBarInactiveTintColor: "#8C7F73",
+        tabBarActiveTintColor: "#1D5A4A",
+        tabBarInactiveTintColor: "#68736D",
         tabBarStyle: {
-          borderTopColor: "rgba(31,27,22,0.08)",
-          backgroundColor: "#FFF7ED",
+          borderTopColor: "rgba(23,32,28,0.08)",
+          backgroundColor: "#FBFCF9",
+          paddingTop: 7,
+          paddingBottom: 7,
+          height: 66,
         },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: "600" },
       }}
     >
       <Tabs.Screen
         name="home"
         options={{
           title: "Tables",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="restaurant-outline" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? "restaurant" : "restaurant-outline"} size={size} color={color} />
           ),
         }}
       />
@@ -27,8 +31,8 @@ export default function TabsLayout() {
         name="bookings"
         options={{
           title: "Bookings",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="bookmark-outline" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? "bookmark" : "bookmark-outline"} size={size} color={color} />
           ),
         }}
       />
@@ -36,8 +40,8 @@ export default function TabsLayout() {
         name="matches"
         options={{
           title: "Matches",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="people-outline" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? "people" : "people-outline"} size={size} color={color} />
           ),
         }}
       />
@@ -45,8 +49,8 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: "Profile",
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person-circle-outline" size={size} color={color} />
+          tabBarIcon: ({ color, size, focused }) => (
+            <Ionicons name={focused ? "person-circle" : "person-circle-outline"} size={size} color={color} />
           ),
         }}
       />

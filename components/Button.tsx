@@ -35,7 +35,7 @@ export function Button({
     <Pressable
       onPress={onPress}
       disabled={disabled || loading}
-      className={`h-12 items-center justify-center rounded-2xl px-5 ${v.base}`}
+      className={`h-12 items-center justify-center rounded-lg px-5 ${v.base}`}
     >
       {loading ? (
         <ActivityIndicator color="white" />

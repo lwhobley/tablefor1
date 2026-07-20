@@ -9,7 +9,9 @@ export function Screen({
   scroll?: boolean;
 }) {
   const Body = (
-    <View className="flex-1 bg-cream px-6 pb-8 pt-4">{children}</View>
+    <View className="w-full max-w-3xl flex-1 self-center bg-cream px-4 pb-8 pt-3 sm:px-6">
+      {children}
+    </View>
   );
   return (
     <SafeAreaView className="flex-1 bg-cream" edges={["top", "bottom"]}>

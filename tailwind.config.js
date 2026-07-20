@@ -5,12 +5,14 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        cream: "#FFF7ED",
-        ink: "#1F1B16",
-        rust: "#C2410C",
-        clay: "#E07A5F",
-        sage: "#81B29A",
-        muted: "#8C7F73",
+        cream: "#F6F7F2",
+        ink: "#17201C",
+        rust: "#B5462D",
+        clay: "#D69A72",
+        sage: "#668A78",
+        muted: "#68736D",
+        forest: "#1D5A4A",
+        pearl: "#FBFCF9",
       },
       fontFamily: {
         serif: ["Georgia", "ui-serif", "serif"],
