@@ -944,7 +944,7 @@ export function useDinnerStories() {
       const { data, error } = await supabase
         .from("dinner_stories")
         .select(`
-          id, event_id, user_id, photo_url, caption, created_at,
+          id, event_id, user_id, author_name, is_featured, photo_url, caption, created_at,
           user:users(name, photo_url),
           event:events(
             event_date, city,

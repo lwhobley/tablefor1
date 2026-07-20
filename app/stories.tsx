@@ -83,7 +83,7 @@ export default function StoriesScreen() {
                       </View>
                       <View>
                         <Text className="font-semibold text-ink text-sm">
-                          {item.user?.name ?? "Anonymous Diner"}
+                          {item.user?.name ?? item.author_name ?? "Table for 2 Community"}
                         </Text>
                         <Text className="text-xs text-ink/50">
                           {item.event?.city ?? "Explore Location"}

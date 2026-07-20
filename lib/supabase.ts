@@ -240,7 +240,9 @@ export type CityVote = {
 export type DinnerStory = {
   id: string;
   event_id: string;
-  user_id: string;
+  user_id: string | null;
+  author_name: string | null;
+  is_featured: boolean;
   photo_url: string;
   caption: string | null;
   created_at: string;
