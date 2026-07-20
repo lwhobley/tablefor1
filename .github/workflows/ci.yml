@@ -25,9 +25,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: denoland/setup-deno@v1
+      - uses: denoland/setup-deno@v2
         with:
-          deno-version: v1.x
+          deno-version: v2.x
       - name: deno check
         run: |
           for f in supabase/functions/*/index.ts; do
@@ -35,4 +35,4 @@ jobs:
             deno check "$f"
           done
       - name: deno test
-        run: deno test --allow-none supabase/functions
+        run: deno test supabase/functions
