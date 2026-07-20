@@ -11,9 +11,18 @@ export type Diner = {
   is_premium?: boolean;
   trust_score?: number;
   prefers_window_seat?: boolean;
+  interests?: string[];
+  preferred_vibes?: string[];
+  availability?: string[];
+  blocked_ids?: string[];
 };
 
+function isBlockedPair(user1: Diner, user2: Diner): boolean {
+  return !!user1.blocked_ids?.includes(user2.id) || !!user2.blocked_ids?.includes(user1.id);
+}
+
 export function scoreCompatibility(user1: Diner, user2: Diner): number {
+  if (isBlockedPair(user1, user2)) return -1000;
   let score = 0;
 
   // Energy level compatibility (0-25 points)
@@ -74,6 +83,21 @@ export function scoreCompatibility(user1: Diner, user2: Diner): number {
     score += 15;
   }
 
+  const interestOverlap = (user1.interests ?? []).filter((interest) =>
+    (user2.interests ?? []).includes(interest)
+  ).length;
+  score += Math.min(10, interestOverlap * 5);
+
+  const vibeOverlap = (user1.preferred_vibes ?? []).filter((vibe) =>
+    (user2.preferred_vibes ?? []).includes(vibe)
+  ).length;
+  score += Math.min(10, vibeOverlap * 5);
+
+  const availabilityOverlap = (user1.availability ?? []).some((slot) =>
+    (user2.availability ?? []).includes(slot)
+  );
+  if (availabilityOverlap) score += 10;
+
   // Chronic no-show penalty: deprioritize pairing with diners who have a
   // track record of not checking in (capped so it can't zero out the score).
   const noShowPenalty =
@@ -105,6 +129,7 @@ export function greedyMatching(
   for (let i = 0; i < diners.length; i++) {
     for (let j = i + 1; j < diners.length; j++) {
       const score = scoreCompatibility(diners[i], diners[j]);
+      if (score < 0) continue;
       pairs.push({ ids: [diners[i].id, diners[j].id], score });
     }
   }
@@ -167,7 +192,13 @@ export function greedyMatching(
   const leftovers = diners.filter((d) => !matched.has(d.id));
   for (const diner of leftovers) {
     const openGroup = groups
-      .filter((g) => g.user_ids.length < groupSize)
+      .filter((g) =>
+        g.user_ids.length < groupSize &&
+        g.user_ids.every((id) => {
+          const member = diners.find((candidate) => candidate.id === id);
+          return member ? !isBlockedPair(diner, member) : false;
+        })
+      )
       .sort((a, b) => a.user_ids.length - b.user_ids.length)[0];
 
     if (openGroup) {

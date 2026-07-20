@@ -1,5 +1,5 @@
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { View, Text, ScrollView, ActivityIndicator, Alert, Share, Pressable, ImageBackground } from "react-native";
+import { View, Text, ScrollView, ActivityIndicator, Alert, Share, Pressable, ImageBackground, Linking } from "react-native";
 import { useAuth } from "@/lib/auth";
 import {
   useEventDetails,
@@ -16,6 +16,7 @@ import {
   useUserBookings,
   useIsRestaurantFavorited,
   useToggleFavoriteRestaurant,
+  useRestaurantPerks,
 } from "@/lib/queries";
 import { Button } from "@/components/Button";
 import { Screen } from "@/components/Screen";
@@ -24,6 +25,8 @@ import { MenuPreview } from "@/components/MenuPreview";
 import { isMysteryRevealed, priceTier } from "@/lib/mystery";
 import { Ionicons } from "@expo/vector-icons";
 import { getEventArtwork } from "@/components/event-artwork";
+import { getEventMatchFit, googleCalendarUrl } from "@/lib/matchValue";
+import type { RestaurantPerk } from "@/lib/supabase";
 
 export default function EventDetail() {
   const { id, invite_code } = useLocalSearchParams<{ id: string; invite_code?: string }>();
@@ -50,6 +53,7 @@ export default function EventDetail() {
 
   const { data: isFavorited } = useIsRestaurantFavorited(userId, event?.restaurant_id);
   const toggleFavorite = useToggleFavoriteRestaurant(userId);
+  const { data: perks } = useRestaurantPerks(event && revealed ? event.restaurant_id : undefined);
 
   const handleToggleFavorite = () => {
     if (!event?.restaurant_id) return;
@@ -126,6 +130,7 @@ export default function EventDetail() {
   const spotsLeft = Math.max(0, event.group_size - event.confirmed_covers);
   const isFull = spotsLeft === 0 && !isInviteValid;
   const eventDate = new Date(event.event_date);
+  const fit = getEventMatchFit(profile, event);
   const formattedDate = eventDate.toLocaleDateString("en-US", {
     weekday: "long",
     month: "short",
@@ -135,6 +140,27 @@ export default function EventDetail() {
     hour: "2-digit",
     minute: "2-digit",
   });
+
+  const openUrl = async (url: string | null | undefined, fallbackMessage: string) => {
+    if (!url) {
+      Alert.alert("Not available yet", fallbackMessage);
+      return;
+    }
+    try {
+      await Linking.openURL(url);
+    } catch {
+      Alert.alert("Couldn't open link", "Please try again in a moment.");
+    }
+  };
+
+  const mapsUrl = event.restaurant?.address
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(event.restaurant.address)}`
+    : null;
+  const calendarUrl = googleCalendarUrl(
+    event,
+    `${event.theme ?? "Table for 2"} at ${event.restaurant?.name ?? "a mystery restaurant"}`,
+    event.restaurant?.address,
+  );
 
   return (
     <Screen scroll={false}>
@@ -199,7 +225,7 @@ export default function EventDetail() {
 
               <View className="gap-2 rounded-md bg-black/70 p-4">
                 <Text className="text-xs font-bold uppercase text-white/70">
-                  {event.format.replace("_", " ")}
+                  {event.theme ?? event.format.replace("_", " ")}
                 </Text>
                 <Text className="font-serif text-3xl text-white">
                   {revealed
@@ -217,10 +243,82 @@ export default function EventDetail() {
                       : ""}
                   </Text>
                 </View>
+                <View className="flex-row flex-wrap gap-2">
+                  {event.is_signature && (
+                    <View className="flex-row items-center gap-1 rounded-full bg-white/15 px-2 py-1">
+                      <Ionicons name="diamond" size={10} color="#FFFFFF" />
+                      <Text className="text-[10px] font-semibold text-white">Signature Table</Text>
+                    </View>
+                  )}
+                  {(event.vibe_tags ?? []).slice(0, 2).map((vibe: string) => (
+                    <View key={vibe} className="rounded-full bg-white/15 px-2 py-1">
+                      <Text className="text-[10px] capitalize text-white">{vibe}</Text>
+                    </View>
+                  ))}
+                </View>
               </View>
             </View>
           </ImageBackground>
         </View>
+
+        <View className="mb-8 gap-3 border-y border-ink/10 py-5">
+          <View className="flex-row items-center justify-between gap-4">
+            <View className="flex-1">
+              <Text className="text-xs font-bold uppercase text-forest">Your table fit</Text>
+              <Text className="font-serif text-2xl text-ink">{fit.score}% match</Text>
+            </View>
+            <View className="h-12 w-12 items-center justify-center rounded-full bg-forest">
+              <Ionicons name="sparkles" size={21} color="#FFFFFF" />
+            </View>
+          </View>
+          {fit.reasons.map((reason) => (
+            <View key={reason} className="flex-row items-center gap-2">
+              <Ionicons name="checkmark-circle" size={16} color="#1D5A4A" />
+              <Text className="text-sm text-ink/75">{reason}</Text>
+            </View>
+          ))}
+        </View>
+
+        {revealed && (
+          <View className="mb-8 gap-3">
+            <Text className="text-lg font-bold text-ink">Plan your evening</Text>
+            <View className="flex-row flex-wrap gap-2">
+              <Pressable onPress={() => openUrl(mapsUrl, "Directions will appear when the restaurant is revealed.")} className="min-w-[46%] flex-1 flex-row items-center gap-2 rounded-lg border border-ink/10 bg-white px-3 py-3">
+                <Ionicons name="navigate-outline" size={18} color="#1D5A4A" /><Text className="text-sm font-semibold text-ink">Directions</Text>
+              </Pressable>
+              <Pressable onPress={() => openUrl(calendarUrl, "Calendar export is unavailable.")} className="min-w-[46%] flex-1 flex-row items-center gap-2 rounded-lg border border-ink/10 bg-white px-3 py-3">
+                <Ionicons name="calendar-outline" size={18} color="#1D5A4A" /><Text className="text-sm font-semibold text-ink">Add calendar</Text>
+              </Pressable>
+              <Pressable onPress={() => openUrl(event.restaurant?.menu_url, "This restaurant has not supplied a menu link yet.")} className="min-w-[46%] flex-1 flex-row items-center gap-2 rounded-lg border border-ink/10 bg-white px-3 py-3">
+                <Ionicons name="book-outline" size={18} color="#1D5A4A" /><Text className="text-sm font-semibold text-ink">Full menu</Text>
+              </Pressable>
+              <Pressable onPress={() => openUrl(event.restaurant?.reservation_url, "Your Table for 2 seat is handled in the app. The restaurant has not supplied a separate reservation link.")} className="min-w-[46%] flex-1 flex-row items-center gap-2 rounded-lg border border-ink/10 bg-white px-3 py-3">
+                <Ionicons name="open-outline" size={18} color="#1D5A4A" /><Text className="text-sm font-semibold text-ink">Restaurant booking</Text>
+              </Pressable>
+            </View>
+            {event.restaurant?.parking_info && (
+              <View className="flex-row items-start gap-2 rounded-lg bg-sage/10 p-3">
+                <Ionicons name="car-outline" size={18} color="#1D5A4A" />
+                <Text className="flex-1 text-sm leading-5 text-ink/75">{event.restaurant.parking_info}</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {(perks ?? []).length > 0 && (
+          <View className="mb-8 gap-3">
+            <Text className="text-lg font-bold text-ink">Member perks</Text>
+            {(perks ?? []).map((perk: RestaurantPerk) => (
+              <View key={perk.id} className="flex-row items-start gap-3 border-l-4 border-rust bg-white p-4">
+                <Ionicons name="gift-outline" size={20} color="#B5462D" />
+                <View className="flex-1 gap-1">
+                  <View className="flex-row items-center gap-2"><Text className="font-semibold text-ink">{perk.title}</Text>{perk.premium_only && <Text className="text-[10px] font-bold uppercase text-rust">Premium</Text>}</View>
+                  <Text className="text-sm leading-5 text-muted">{perk.description}</Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Event details grid */}
         <View className="mb-8 rounded-lg border border-ink/10 bg-white p-4">

@@ -79,3 +79,16 @@ Deno.test("greedyMatching: no group ever exceeds groupSize", () => {
     );
   }
 });
+
+Deno.test("greedyMatching: blocked diners are never placed together", () => {
+  const diners = [
+    diner("a", { blocked_ids: ["b"] }),
+    diner("b"),
+    diner("c"),
+  ];
+  const groups = greedyMatching(diners, 2);
+  const invalid = groups.some(
+    (group) => group.user_ids.includes("a") && group.user_ids.includes("b"),
+  );
+  assert(!invalid, "blocked diners were placed in the same group");
+});

@@ -22,6 +22,9 @@ import {
   type DinnerStory,
   type FavoriteRestaurant,
   type RestaurantRecommendation,
+  type ProfileVerification,
+  type RestaurantPerk,
+  type MatchPoll,
 } from "./supabase";
 import { getChatPhotoSignedUrl } from "./uploadChatPhoto";
 
@@ -77,7 +80,15 @@ export function useUpcomingEvents(city: string | null | undefined) {
         p_city: city ?? null,
       });
       if (error) throw error;
-      return (data ?? []) as unknown as EventWithRestaurant[];
+      const rows = (data ?? []) as unknown as EventWithRestaurant[];
+      if (rows.length === 0) return rows;
+      const { data: metadata, error: metadataError } = await supabase
+        .from("events")
+        .select("id, theme, vibe_tags, dress_code, host_name, is_signature")
+        .in("id", rows.map((event) => event.id));
+      if (metadataError) throw metadataError;
+      const byId = new Map((metadata ?? []).map((event) => [event.id, event]));
+      return rows.map((event) => ({ ...event, ...byId.get(event.id) }));
     },
   });
 }
@@ -100,7 +111,32 @@ export function useEventDetails(eventId: string | undefined) {
         .maybeSingle();
       if (error) throw error;
       if (!data) throw new Error("Event not found");
-      return data as unknown as EventDetail;
+      const detail = data as unknown as EventDetail;
+      const eventMetadataPromise = supabase
+        .from("events")
+        .select("theme, vibe_tags, dress_code, host_name, is_signature")
+        .eq("id", eventId!)
+        .single();
+      const restaurantMetadataPromise = detail.restaurant
+        ? supabase
+            .from("restaurants")
+            .select("website_url, menu_url, reservation_url, parking_info")
+            .eq("id", detail.restaurant_id)
+            .single()
+        : Promise.resolve({ data: null, error: null });
+      const [eventMetadata, restaurantMetadata] = await Promise.all([
+        eventMetadataPromise,
+        restaurantMetadataPromise,
+      ]);
+      if (eventMetadata.error) throw eventMetadata.error;
+      if (restaurantMetadata.error) throw restaurantMetadata.error;
+      return {
+        ...detail,
+        ...eventMetadata.data,
+        restaurant: detail.restaurant
+          ? { ...detail.restaurant, ...restaurantMetadata.data }
+          : detail.restaurant,
+      } as EventDetail;
     },
   });
 }
@@ -121,6 +157,7 @@ export function useUserBookings(userId: string | undefined) {
            amount_cents, created_at, updated_at,
            event:events(id, restaurant_id, format, status, event_date, group_size,
              price_cents, city, description, is_mystery, reveal_hours_before,
+             theme, vibe_tags, dress_code, host_name, is_signature,
              restaurant:restaurants(name, neighborhood, cuisine))`,
         )
         .eq("user_id", userId!)
@@ -1507,6 +1544,258 @@ export function useRestaurants(city: string | null | undefined) {
       if (error) throw error;
       return data as Restaurant[];
     }
+  });
+}
+
+// ============================================================
+// MEMBER VALUE, SAFETY, PASSPORT, POLLS, AND CONCIERGE
+// ============================================================
+
+export function useProfileVerification(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["profile-verification", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profile_verifications")
+        .select("*")
+        .eq("user_id", userId!)
+        .maybeSingle();
+      if (error) throw error;
+      return data as ProfileVerification | null;
+    },
+  });
+}
+
+export function useRequestProfileVerification(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async () => {
+      if (!userId) throw new Error("Not signed in");
+      const { data, error } = await supabase
+        .from("profile_verifications")
+        .insert({ user_id: userId, method: "identity_review", status: "pending" })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as ProfileVerification;
+    },
+    onSuccess: (data) => qc.setQueryData(["profile-verification", userId], data),
+  });
+}
+
+export function useBlockedUsers(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["blocked-users", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_blocks")
+        .select("blocked_id, created_at")
+        .eq("blocker_id", userId!);
+      if (error) throw error;
+      return data as { blocked_id: string; created_at: string }[];
+    },
+  });
+}
+
+export function useToggleBlockedUser(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ blockedId, blocked }: { blockedId: string; blocked: boolean }) => {
+      if (!userId) throw new Error("Not signed in");
+      if (blocked) {
+        const { error } = await supabase
+          .from("user_blocks")
+          .delete()
+          .eq("blocker_id", userId)
+          .eq("blocked_id", blockedId);
+        if (error) throw error;
+        return false;
+      }
+      const { error } = await supabase
+        .from("user_blocks")
+        .insert({ blocker_id: userId, blocked_id: blockedId });
+      if (error) throw error;
+      return true;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["blocked-users", userId] }),
+  });
+}
+
+export function useSafetyReports(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["safety-reports", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("safety_reports")
+        .select("id, category, details, status, created_at")
+        .eq("reporter_id", userId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useSubmitSafetyReport(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (report: {
+      subjectId?: string;
+      matchId?: string;
+      category: string;
+      details: string;
+    }) => {
+      if (!userId) throw new Error("Not signed in");
+      const { data, error } = await supabase
+        .from("safety_reports")
+        .insert({
+          reporter_id: userId,
+          subject_id: report.subjectId ?? null,
+          match_id: report.matchId ?? null,
+          category: report.category,
+          details: report.details,
+          status: "submitted",
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["safety-reports", userId] }),
+  });
+}
+
+export function useRestaurantPerks(restaurantId: string | undefined) {
+  return useQuery({
+    queryKey: ["restaurant-perks", restaurantId],
+    enabled: !!restaurantId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("restaurant_perks")
+        .select("*")
+        .eq("restaurant_id", restaurantId!)
+        .order("premium_only", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as RestaurantPerk[];
+    },
+  });
+}
+
+export type PassportVisit = {
+  id: string;
+  checked_in_at: string;
+  booking: {
+    event: EventWithRestaurant;
+  };
+};
+
+export function useDiningPassport(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["dining-passport", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("checkins")
+        .select(`
+          id, checked_in_at,
+          booking:bookings!inner(
+            event:events!inner(
+              id, event_date, format, city, theme, vibe_tags,
+              restaurant:restaurants(name, neighborhood, cuisine)
+            )
+          )
+        `)
+        .eq("user_id", userId!)
+        .order("checked_in_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as unknown as PassportVisit[];
+    },
+  });
+}
+
+export function useMatchPolls(matchId: string | undefined) {
+  return useQuery({
+    queryKey: ["match-polls", matchId],
+    enabled: !!matchId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("match_polls")
+        .select("*, votes:match_poll_votes(user_id, option_index)")
+        .eq("match_id", matchId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []) as MatchPoll[];
+    },
+  });
+}
+
+export function useCreateMatchPoll(matchId: string | undefined, userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ question, options }: { question: string; options: string[] }) => {
+      if (!matchId || !userId) throw new Error("Not signed in");
+      const { data, error } = await supabase
+        .from("match_polls")
+        .insert({ match_id: matchId, creator_id: userId, question, options })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["match-polls", matchId] }),
+  });
+}
+
+export function useVoteMatchPoll(matchId: string | undefined, userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ pollId, optionIndex }: { pollId: string; optionIndex: number }) => {
+      if (!userId) throw new Error("Not signed in");
+      const { error } = await supabase
+        .from("match_poll_votes")
+        .upsert(
+          { poll_id: pollId, user_id: userId, option_index: optionIndex },
+          { onConflict: "poll_id,user_id" },
+        );
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["match-polls", matchId] }),
+  });
+}
+
+export function useConciergeRequests(userId: string | undefined) {
+  return useQuery({
+    queryKey: ["concierge-requests", userId],
+    enabled: !!userId,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("concierge_requests")
+        .select("*")
+        .eq("user_id", userId!)
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return data ?? [];
+    },
+  });
+}
+
+export function useSubmitConciergeRequest(userId: string | undefined) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ requestType, details }: { requestType: string; details: string }) => {
+      if (!userId) throw new Error("Not signed in");
+      const { data, error } = await supabase
+        .from("concierge_requests")
+        .insert({ user_id: userId, request_type: requestType, details })
+        .select()
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["concierge-requests", userId] }),
   });
 }
 

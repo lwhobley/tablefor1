@@ -27,13 +27,17 @@ import {
   type WaitlistNotification,
 } from "../../lib/queries";
 import { isMysteryRevealed, priceTier } from "../../lib/mystery";
+import { getEventMatchFit } from "../../lib/matchValue";
+import type { Profile } from "../../lib/supabase";
 
 function formatLabel(format: string) {
   return format.replaceAll("_", " ");
 }
 
-function EventCard({ event, isPremium }: { event: EventWithRestaurant; isPremium: boolean }) {
+function EventCard({ event, profile }: { event: EventWithRestaurant; profile: Profile | undefined }) {
   const router = useRouter();
+  const isPremium = !!profile?.is_premium;
+  const fit = getEventMatchFit(profile, event);
   const publishedTime = event.published_at ? new Date(event.published_at).getTime() : 0;
   const earlyAccessLimit = publishedTime + (event.early_access_hours || 24) * 60 * 60 * 1000;
   const isEarlyAccess = Date.now() < earlyAccessLimit;
@@ -67,10 +71,18 @@ function EventCard({ event, isPremium }: { event: EventWithRestaurant; isPremium
       >
         <View className="flex-1 justify-between p-3">
           <View className="flex-row items-start justify-between gap-2">
-            <View className="rounded-full bg-black/70 px-3 py-1.5">
-              <Text className="text-[10px] font-bold uppercase text-white">
-                {formatLabel(event.format)}
-              </Text>
+            <View className="gap-2">
+              <View className="self-start rounded-full bg-black/70 px-3 py-1.5">
+                <Text className="text-[10px] font-bold uppercase text-white">
+                  {formatLabel(event.format)}
+                </Text>
+              </View>
+              {event.is_signature && (
+                <View className="self-start flex-row items-center gap-1 rounded-full bg-white/95 px-2.5 py-1">
+                  <Ionicons name="diamond" size={10} color="#B5462D" />
+                  <Text className="text-[10px] font-bold text-rust">Signature Table</Text>
+                </View>
+              )}
             </View>
             <View className="items-end gap-2">
               {event.is_mystery && !revealed && <MysteryBadge event={event} />}
@@ -98,6 +110,9 @@ function EventCard({ event, isPremium }: { event: EventWithRestaurant; isPremium
       <View className="gap-3 p-4">
         <View className="flex-row items-start justify-between gap-4">
           <View className="flex-1 gap-1">
+            <Text className="text-xs font-bold uppercase text-rust">
+              {event.theme ?? formatLabel(event.format)}
+            </Text>
             <Text className="font-serif text-xl text-ink">
               {revealed
                 ? event.restaurant?.name ?? "Restaurant TBA"
@@ -111,6 +126,16 @@ function EventCard({ event, isPremium }: { event: EventWithRestaurant; isPremium
           <Text className="text-base font-bold text-ink">
             ${(event.price_cents / 100).toFixed(0)}
           </Text>
+        </View>
+
+        <View className="flex-row items-center gap-2 rounded-md bg-sage/10 px-3 py-2">
+          <View className="h-8 w-8 items-center justify-center rounded-full bg-forest">
+            <Text className="text-[11px] font-bold text-white">{fit.score}%</Text>
+          </View>
+          <View className="flex-1">
+            <Text className="text-xs font-semibold text-forest">Why it fits you</Text>
+            <Text className="text-xs text-muted">{fit.reasons[0]}</Text>
+          </View>
         </View>
 
         <View className="flex-row items-center gap-4 border-t border-ink/10 pt-3">
@@ -197,7 +222,7 @@ function RouletteBanner({ profile, userId }: { profile: any; userId: string | un
         await optOutRoulette.mutateAsync(dateString);
         Alert.alert("Opted Out", "You opted out of Dinner Roulette for tonight.");
       } else {
-        await optInRoulette.mutateAsync({ city: profile.city, date: dateString });
+        await optInRoulette.mutateAsync({ city: profile.travel_city || profile.city, date: dateString });
         Alert.alert("You're In", "We'll search for an open table and match you by 5 PM.");
       }
     } catch (err) {
@@ -275,7 +300,8 @@ export default function Home() {
   const { session } = useAuth();
   const { data: profile } = useProfile(session?.user.id);
   const { data: streak } = useStreak(session?.user.id);
-  const { data: events, isLoading } = useUpcomingEvents(profile?.city);
+  const activeCity = profile?.travel_city || profile?.city;
+  const { data: events, isLoading } = useUpcomingEvents(activeCity);
   const { data: waitlistNotifications } = useMyWaitlistNotifications(session?.user.id);
 
   return (
@@ -301,10 +327,10 @@ export default function Home() {
         <View className="gap-1">
           <View className="flex-row items-end justify-between gap-3">
             <Text className="flex-1 font-serif text-3xl text-ink">Upcoming tables</Text>
-            {profile?.city && (
+            {activeCity && (
               <View className="mb-1 flex-row items-center gap-1 rounded-full bg-sage/15 px-2.5 py-1">
-                <Ionicons name="location" size={11} color="#1D5A4A" />
-                <Text className="text-xs font-semibold text-forest">{profile.city}</Text>
+                <Ionicons name={profile?.travel_city ? "airplane" : "location"} size={11} color="#1D5A4A" />
+                <Text className="text-xs font-semibold text-forest">{activeCity}</Text>
               </View>
             )}
           </View>
@@ -320,7 +346,7 @@ export default function Home() {
         <FlatList
           data={events ?? []}
           keyExtractor={(event) => event.id}
-          renderItem={({ item }) => <EventCard event={item} isPremium={!!profile?.is_premium} />}
+          renderItem={({ item }) => <EventCard event={item} profile={profile} />}
           ItemSeparatorComponent={() => <View className="h-4" />}
           ListHeaderComponent={
             <View className="gap-3 pb-5">
@@ -335,7 +361,7 @@ export default function Home() {
               </View>
             </View>
           }
-          ListEmptyComponent={<EmptyState city={profile?.city} />}
+          ListEmptyComponent={<EmptyState city={activeCity} />}
           contentContainerStyle={{ paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
         />

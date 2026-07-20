@@ -22,6 +22,7 @@ import {
   useMyCheckin,
   useReactToMessage,
   useRemoveReaction,
+  useProfile,
 } from "@/lib/queries";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
@@ -34,6 +35,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useState, useRef, useEffect, useMemo } from "react";
 import { ProfileModal } from "@/components/ProfileModal";
 import type { Profile } from "@/lib/supabase";
+import { DinnerPolls } from "@/components/DinnerPolls";
+import { getGroupMatchReasons } from "@/lib/matchValue";
 
 export default function MatchDetail() {
   const { matchId, recipientId } = useLocalSearchParams<{
@@ -94,6 +97,7 @@ export default function MatchDetail() {
   };
 
   const { data: match, isLoading: matchLoading } = useMatchDetail(matchId);
+  const { data: profile } = useProfile(userId);
   const { data: messages } = useMatchMessages(matchId);
   useSubscribeToMessages(matchId);
 
@@ -110,6 +114,10 @@ export default function MatchDetail() {
     if (!match) return [];
     return generateConversationStarters(match.diners, match.event);
   }, [match]);
+  const matchReasons = useMemo(() => {
+    if (!match || !profile) return [];
+    return getGroupMatchReasons(profile, match.diners);
+  }, [match, profile]);
 
   useEffect(() => {
     if (messages && messages.length > 0) {
@@ -219,6 +227,20 @@ export default function MatchDetail() {
           </View>
         )}
       </View>
+
+      {isRevealed && matchReasons.length > 0 && (
+        <View className="mb-4 gap-2 rounded-lg bg-sage/10 p-4">
+          <View className="flex-row items-center gap-2">
+            <Ionicons name="sparkles" size={17} color="#1D5A4A" />
+            <Text className="font-semibold text-forest">Why this group works</Text>
+          </View>
+          <Text className="text-sm leading-5 text-ink/70">{matchReasons.join(" · ")}</Text>
+        </View>
+      )}
+
+      {isRevealed && !isPast && userId && (
+        <DinnerPolls matchId={matchId} userId={userId} />
+      )}
 
       {/* Conversation starters — generated from the group's shared attributes */}
       {isRevealed && !isPast && (

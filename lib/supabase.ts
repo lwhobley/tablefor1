@@ -63,6 +63,12 @@ export type Profile = {
   is_premium: boolean;
   premium_expires_at: string | null;
   prefers_window_seat: boolean;
+  interests: string[];
+  preferred_vibes: string[];
+  availability: string[];
+  travel_city: string | null;
+  budget_max_cents: number;
+  max_distance_km: number;
   welcome_email_sent_at: string | null;
   created_at: string;
   updated_at: string;
@@ -92,6 +98,11 @@ export type EventRow = {
   reveal_hours_before: number;
   published_at: string;
   early_access_hours: number;
+  theme: string | null;
+  vibe_tags: string[];
+  dress_code: string | null;
+  host_name: string | null;
+  is_signature: boolean;
 };
 
 export type BookingStatus = "pending" | "confirmed" | "cancelled" | "refunded";
@@ -119,6 +130,10 @@ export type Restaurant = {
   stripe_account: string | null;
   partner_email: string | null;
   is_active: boolean;
+  website_url: string | null;
+  menu_url: string | null;
+  reservation_url: string | null;
+  parking_info: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -264,4 +279,35 @@ export type RestaurantRecommendation = {
   neighborhood: string | null;
   notes: string | null;
   created_at: string;
+};
+
+export type ProfileVerification = {
+  id: string;
+  user_id: string;
+  method: "identity_review" | "community_review";
+  status: "pending" | "verified" | "rejected";
+  submitted_at: string;
+  reviewed_at: string | null;
+};
+
+export type RestaurantPerk = {
+  id: string;
+  restaurant_id: string;
+  title: string;
+  description: string;
+  premium_only: boolean;
+  active_from: string;
+  active_until: string | null;
+  is_active: boolean;
+};
+
+export type MatchPoll = {
+  id: string;
+  match_id: string;
+  creator_id: string;
+  question: string;
+  options: string[];
+  closes_at: string | null;
+  created_at: string;
+  votes: { user_id: string; option_index: number }[];
 };

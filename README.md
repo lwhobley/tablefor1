@@ -1,9 +1,22 @@
 # Table for 2
 
 Curated solo-diner dinners. Mobile-first web app built with Expo Router,
-Supabase, NativeWind, and React Query. This repo currently ships **Phase 1**:
-magic-link auth, profile onboarding, editable profile, and a placeholder
-home feed.
+Supabase, NativeWind, and React Query. The current product covers the full
+dinner journey: discovery, paid booking, smart group matching, coordination,
+check-in, feedback, mutual Sparks, reconnect dinners, and member safety.
+
+## Member experience
+
+- Image-led themed and Signature Table discovery with personalized fit reasons
+- Matching based on food, dietary needs, social energy, conversation style,
+  interests, preferred vibes, availability, trust, and Premium status
+- Travel mode, Dinner Roulette, early access, waitlists, and +1 invitations
+- Revealed group profiles, real-time chat, photos, reactions, prompts, and polls
+- Restaurant menus, directions, calendar export, partner reservation links,
+  parking details, favorites, recommendations, and active partner perks
+- Check-in selfies, trust scores, profile verification, reporting, and blocking
+- Post-dinner feedback, private Sparks, mutual reconnects, stories, and passport
+- Premium Signature Tables, private-table requests, and dining concierge
 
 ## Stack
 
@@ -71,8 +84,14 @@ app/
   (onboarding)/
     name → photo → food → personality → city
   (tabs)/
-    home.tsx            # upcoming events feed
-    profile.tsx         # editable profile
+    home.tsx            # personalized upcoming tables
+    bookings.tsx        # upcoming and past dinners
+    matches.tsx         # revealed groups and chat entry points
+    club.tsx            # matching profile, travel mode, Premium, member tools
+    profile.tsx         # editable public profile
+  passport.tsx          # checked-in dining history
+  safety/               # verification, reports, and safety controls
+  concierge.tsx         # Premium member-care requests
   partner/              # Phase 3 partner portal (own auth gate)
     _layout.tsx         # session + restaurants.partner_email check
     login.tsx           # partner magic link
@@ -162,7 +181,6 @@ supabase secrets set --env-file supabase/.env
 - `.github/workflows/ci.yml` runs `typecheck` + `lint` + `npm test` for the
   app, and `deno check` + `deno test` for the edge functions, on every PR.
 
-## What's next
-
-- **Phase 2** — events, Stripe checkout, matching Edge Function, in-app
-  messaging, Resend confirmations (schema + storage already in place)
+Restaurant booking URLs, menus, parking details, and perks are intentionally
+shown only when a restaurant partner has supplied real data. The app does not
+invent or imply third-party offers.

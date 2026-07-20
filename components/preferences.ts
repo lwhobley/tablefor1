@@ -90,3 +90,33 @@ export const CITY_OPTIONS: Option[] = [
   "Boston",
   "Portland",
 ].map((c) => ({ value: c, label: c }));
+
+export const INTEREST_OPTIONS: Option[] = [
+  "Travel",
+  "Live music",
+  "Books",
+  "Entrepreneurship",
+  "Arts and culture",
+  "Fitness",
+  "Film",
+  "Volunteering",
+  "Technology",
+  "Food adventures",
+].map((value) => ({ value, label: value }));
+
+export const VIBE_OPTIONS: Option[] = [
+  { value: "easygoing", label: "Easygoing" },
+  { value: "lively", label: "Lively" },
+  { value: "warm", label: "Warm conversation" },
+  { value: "food-focused", label: "Food-focused" },
+  { value: "adventurous", label: "Adventurous" },
+  { value: "new connections", label: "New connections" },
+];
+
+export const AVAILABILITY_OPTIONS: Option[] = [
+  { value: "weekday_evenings", label: "Weekday evenings" },
+  { value: "friday_nights", label: "Friday nights" },
+  { value: "weekends", label: "Weekends" },
+  { value: "brunch", label: "Brunch" },
+  { value: "last_minute", label: "Last-minute" },
+];

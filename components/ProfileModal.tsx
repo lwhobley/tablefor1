@@ -1,7 +1,9 @@
 import React from "react";
-import { Modal, View, Text, Image, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { Alert, Modal, View, Text, Image, ScrollView, Pressable, ActivityIndicator } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useBadges, useUserIcebreakers } from "../lib/queries";
+import { useRouter } from "expo-router";
+import { useAuth } from "../lib/auth";
+import { useBadges, useBlockedUsers, useProfileVerification, useToggleBlockedUser, useUserIcebreakers } from "../lib/queries";
 import { BadgeList } from "./BadgeList";
 import type { Profile } from "../lib/supabase";
 
@@ -12,14 +14,37 @@ interface ProfileModalProps {
 }
 
 export function ProfileModal({ visible, onClose, diner }: ProfileModalProps) {
+  const router = useRouter();
+  const { session } = useAuth();
   const { data: userIcebreakers, isLoading: icebreakersLoading } = useUserIcebreakers(diner?.id);
   const { data: badges } = useBadges(diner?.id);
+  const { data: verification } = useProfileVerification(diner?.id);
+  const { data: blockedUsers } = useBlockedUsers(session?.user.id);
+  const toggleBlocked = useToggleBlockedUser(session?.user.id);
 
   if (!diner) return null;
 
   // Capitalize helpers
   const formatText = (text: string) => {
     return text.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  };
+  const isBlocked = blockedUsers?.some((entry: { blocked_id: string }) => entry.blocked_id === diner.id) ?? false;
+
+  const handleBlock = () => {
+    Alert.alert(
+      isBlocked ? `Unblock ${diner.name}?` : `Block ${diner.name}?`,
+      isBlocked
+        ? "They may appear in future matching again."
+        : "They will be excluded from your future matching and can no longer contact you.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: isBlocked ? "Unblock" : "Block",
+          style: isBlocked ? "default" : "destructive",
+          onPress: () => toggleBlocked.mutate({ blockedId: diner.id, blocked: isBlocked }),
+        },
+      ],
+    );
   };
 
   return (
@@ -30,7 +55,7 @@ export function ProfileModal({ visible, onClose, diner }: ProfileModalProps) {
       onRequestClose={onClose}
     >
       <View className="flex-1 justify-end bg-black/50">
-        <View className="h-[85%] rounded-t-3xl bg-white p-6 shadow-2xl">
+        <View className="h-[85%] rounded-t-lg bg-white p-6 shadow-2xl">
           {/* Header */}
           <View className="flex-row items-center justify-between border-b border-ink/10 pb-4 mb-4">
             <Text className="font-serif text-2xl text-ink">Diner Profile</Text>
@@ -51,7 +76,12 @@ export function ProfileModal({ visible, onClose, diner }: ProfileModalProps) {
               </View>
 
               <View className="items-center">
-                <Text className="font-serif text-2xl text-ink font-semibold">{diner.name}</Text>
+                <View className="flex-row items-center gap-1.5">
+                  <Text className="font-serif text-2xl text-ink font-semibold">{diner.name}</Text>
+                  {verification?.status === "verified" && (
+                    <Ionicons name="checkmark-circle" size={19} color="#1D5A4A" />
+                  )}
+                </View>
                 <Text className="text-sm text-ink/60 mt-0.5">
                   <Ionicons name="location-outline" size={12} color="#8C7F73" /> {diner.neighborhood || diner.city}
                 </Text>
@@ -60,7 +90,7 @@ export function ProfileModal({ visible, onClose, diner }: ProfileModalProps) {
 
             {/* About / Bio */}
             {diner.bio && (
-              <View className="mb-6 bg-cream/30 border border-ink/5 rounded-2xl p-4">
+              <View className="mb-6 bg-cream/30 border border-ink/5 rounded-lg p-4">
                 <Text className="text-xs font-bold uppercase tracking-wider text-rust mb-1.5">About Me</Text>
                 <Text className="text-sm leading-relaxed text-ink/80">{diner.bio}</Text>
               </View>
@@ -68,12 +98,12 @@ export function ProfileModal({ visible, onClose, diner }: ProfileModalProps) {
 
             {/* Vibe & Conversational Style */}
             <View className="flex-row gap-3 mb-6">
-              <View className="flex-1 bg-cream/35 border border-ink/5 rounded-2xl p-3.5 items-center">
+              <View className="flex-1 bg-cream/35 border border-ink/5 rounded-lg p-3.5 items-center">
                 <Ionicons name="flash-outline" size={20} color="#C2410C" />
                 <Text className="text-xs text-ink/50 mt-1 uppercase tracking-wider font-semibold">Energy</Text>
                 <Text className="text-sm font-semibold text-ink mt-0.5">{formatText(diner.energy_level)}</Text>
               </View>
-              <View className="flex-1 bg-cream/35 border border-ink/5 rounded-2xl p-3.5 items-center">
+              <View className="flex-1 bg-cream/35 border border-ink/5 rounded-lg p-3.5 items-center">
                 <Ionicons name="chatbubbles-outline" size={20} color="#C2410C" />
                 <Text className="text-xs text-ink/50 mt-1 uppercase tracking-wider font-semibold">Style</Text>
                 <Text className="text-sm font-semibold text-ink mt-0.5">{formatText(diner.conv_style)}</Text>
@@ -125,7 +155,7 @@ export function ProfileModal({ visible, onClose, diner }: ProfileModalProps) {
               ) : userIcebreakers && userIcebreakers.length > 0 ? (
                 <View className="gap-4">
                   {userIcebreakers.map((ib: any) => (
-                    <View key={ib.id} className="rounded-2xl border border-rust/10 bg-rust/5 p-4 shadow-sm">
+                    <View key={ib.id} className="rounded-lg border border-rust/10 bg-rust/5 p-4 shadow-sm">
                       <Text className="text-xs font-bold text-rust uppercase tracking-wider mb-1">
                         {ib.prompt.prompt_text}
                       </Text>
@@ -140,6 +170,27 @@ export function ProfileModal({ visible, onClose, diner }: ProfileModalProps) {
                   No icebreaker answers added yet.
                 </Text>
               )}
+            </View>
+
+            <View className="mb-6 flex-row gap-3 border-t border-ink/10 pt-4">
+              <Pressable
+                onPress={() => {
+                  onClose();
+                  router.push({ pathname: "/safety/report", params: { subjectId: diner.id, subjectName: diner.name } });
+                }}
+                className="flex-1 flex-row items-center justify-center gap-2 rounded-lg border border-ink/15 py-3"
+              >
+                <Ionicons name="flag-outline" size={17} color="#B5462D" />
+                <Text className="text-sm font-semibold text-ink">Report</Text>
+              </Pressable>
+              <Pressable
+                onPress={handleBlock}
+                disabled={toggleBlocked.isPending}
+                className="flex-1 flex-row items-center justify-center gap-2 rounded-lg border border-rust/20 py-3"
+              >
+                <Ionicons name={isBlocked ? "refresh-outline" : "ban-outline"} size={17} color="#B5462D" />
+                <Text className="text-sm font-semibold text-rust">{isBlocked ? "Unblock" : "Block"}</Text>
+              </Pressable>
             </View>
           </ScrollView>
         </View>

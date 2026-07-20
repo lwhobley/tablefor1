@@ -75,7 +75,7 @@ Deno.serve(async (req) => {
 
     // Fetch confirmed bookings with user details
     const bookingsResponse = await fetch(
-      `${supabaseUrl}/rest/v1/bookings?event_id=eq.${event_id}&status=eq.confirmed&select=user_id,user:users(id,energy_level,conv_style,food_prefs,dietary,no_show_count,is_premium,trust_score,prefers_window_seat)`,
+      `${supabaseUrl}/rest/v1/bookings?event_id=eq.${event_id}&status=eq.confirmed&select=user_id,user:users(id,energy_level,conv_style,food_prefs,dietary,no_show_count,is_premium,trust_score,prefers_window_seat,interests,preferred_vibes,availability)`,
       {
         method: "GET",
         headers: {
@@ -103,6 +103,30 @@ Deno.serve(async (req) => {
     const diners = bookings
       .map((b: any) => b.user)
       .filter((u: any) => u);
+
+    const dinerIds = diners.map((diner: any) => diner.id);
+    const idList = dinerIds.join(",");
+    const blocksResponse = await fetch(
+      `${supabaseUrl}/rest/v1/user_blocks?blocker_id=in.(${idList})&blocked_id=in.(${idList})&select=blocker_id,blocked_id`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${supabaseServiceKey}`,
+          apikey: supabaseServiceKey,
+        },
+      }
+    );
+    if (!blocksResponse.ok) {
+      throw new Error(`Failed to load safety exclusions: ${await blocksResponse.text()}`);
+    }
+    const blocks = await blocksResponse.json();
+    for (const diner of diners) {
+      diner.blocked_ids = Array.isArray(blocks)
+        ? blocks
+            .filter((block: any) => block.blocker_id === diner.id)
+            .map((block: any) => block.blocked_id)
+        : [];
+    }
 
     // Run matching algorithm
     const groups = greedyMatching(diners, event.group_size);
