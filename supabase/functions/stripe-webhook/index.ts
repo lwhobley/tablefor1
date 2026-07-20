@@ -4,8 +4,8 @@
 // fires the confirmation email. Idempotent: a replayed event whose booking is
 // already confirmed is a no-op.
 
-import Stripe from "https://esm.sh/stripe@14";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import Stripe from "https://esm.sh/stripe@14.25.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.110.0";
 import { corsHeaders } from "../_shared/cors.ts";
 
 const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
@@ -64,15 +64,21 @@ Deno.serve(async (req) => {
         const userId = session.metadata?.user_id;
         const subscriptionId = session.subscription as string | null;
         if (!userId || !subscriptionId) {
-          console.error("Missing user_id or subscription id on premium checkout session");
+          console.error(
+            "Missing user_id or subscription id on premium checkout session",
+          );
           return json({ received: true });
         }
         try {
-          const subscription = await stripe.subscriptions.retrieve(subscriptionId);
-          const expiresAt = new Date(subscription.current_period_end * 1000).toISOString();
+          const subscription = await stripe.subscriptions.retrieve(
+            subscriptionId,
+          );
+          const expiresAt = new Date(subscription.current_period_end * 1000)
+            .toISOString();
           const { error: rpcErr } = await admin.rpc("set_premium_from_stripe", {
             p_user_id: userId,
-            p_is_premium: subscription.status === "active" || subscription.status === "trialing",
+            p_is_premium: subscription.status === "active" ||
+              subscription.status === "trialing",
             p_expires_at: expiresAt,
             p_customer_id: session.customer as string,
             p_subscription_id: subscriptionId,
@@ -105,12 +111,13 @@ Deno.serve(async (req) => {
 
         // Idempotent: only act on a still-pending booking.
         if (booking.status === "pending") {
-          const bookingEvent = booking.event as unknown as { price_cents: number } | null;
+          const bookingEvent = booking.event as unknown as {
+            price_cents: number;
+          } | null;
           const paidAmount = session.amount_total;
           const paidCurrency = session.currency?.toLowerCase();
           const metadataEventId = session.metadata?.event_id;
-          const paymentMatchesBooking =
-            !!bookingEvent &&
+          const paymentMatchesBooking = !!bookingEvent &&
             metadataEventId === booking.event_id &&
             paidCurrency === "usd" &&
             paidAmount === bookingEvent.price_cents;
@@ -205,11 +212,15 @@ Deno.serve(async (req) => {
           // fail the webhook (Stripe would retry and double-confirm).
           try {
             await fetch(
-              `${Deno.env.get("SUPABASE_URL")}/functions/v1/send-booking-confirmation`,
+              `${
+                Deno.env.get("SUPABASE_URL")
+              }/functions/v1/send-booking-confirmation`,
               {
                 method: "POST",
                 headers: {
-                  Authorization: `Bearer ${Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}`,
+                  Authorization: `Bearer ${
+                    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")
+                  }`,
                   "Content-Type": "application/json",
                 },
                 body: JSON.stringify({ booking_id: bookingId }),
@@ -236,10 +247,11 @@ Deno.serve(async (req) => {
     ) {
       const subscription = event.data.object as Stripe.Subscription;
       const userId = subscription.metadata?.user_id;
-      const isActive =
-        event.type === "customer.subscription.updated" &&
-        (subscription.status === "active" || subscription.status === "trialing");
-      const expiresAt = new Date(subscription.current_period_end * 1000).toISOString();
+      const isActive = event.type === "customer.subscription.updated" &&
+        (subscription.status === "active" ||
+          subscription.status === "trialing");
+      const expiresAt = new Date(subscription.current_period_end * 1000)
+        .toISOString();
 
       try {
         if (userId) {

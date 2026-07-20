@@ -34,11 +34,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!mounted) return;
       setSession(data.session);
       setLoading(false);
-      void sendWelcomeEmail(data.session);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s);
-      if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+      if (event === "SIGNED_IN") {
         void sendWelcomeEmail(s);
       }
     });

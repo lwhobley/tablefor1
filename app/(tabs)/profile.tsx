@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Image, Linking, Pressable, Text, View, TextInput, Alert, ScrollView } from "react-native";
+import { Image, Linking, Platform, Pressable, Text, View, TextInput, Alert, ScrollView } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { Screen } from "../../components/Screen";
@@ -45,6 +45,7 @@ export default function ProfileScreen() {
   const [languages, setLanguages] = useState<string[]>([]);
   const [uploading, setUploading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [premiumError, setPremiumError] = useState<string | null>(null);
 
   // Suggestion form state
   const [showRecommend, setShowRecommend] = useState(false);
@@ -364,8 +365,13 @@ export default function ProfileScreen() {
                 variant="primary"
                 loading={subscribePremium.isPending}
                 onPress={() => {
+                  setPremiumError(null);
                   subscribePremium.mutate(undefined, {
                     onSuccess: async (url) => {
+                      if (Platform.OS === "web" && typeof window !== "undefined") {
+                        window.location.assign(url);
+                        return;
+                      }
                       const supported = await Linking.canOpenURL(url);
                       if (supported) {
                         await Linking.openURL(url);
@@ -373,10 +379,20 @@ export default function ProfileScreen() {
                         Alert.alert("Cannot open Stripe Checkout");
                       }
                     },
-                    onError: (err) => Alert.alert("Failed to start checkout", err.message),
+                    onError: (err) => {
+                      setPremiumError(err.message);
+                      if (Platform.OS !== "web") {
+                        Alert.alert("Failed to start checkout", err.message);
+                      }
+                    },
                   });
                 }}
               />
+              {premiumError && (
+                <Text accessibilityRole="alert" className="text-center text-sm text-red-700">
+                  {premiumError}
+                </Text>
+              )}
               <Text className="text-center text-xs text-ink/50">
                 You'll be redirected to Stripe to complete payment securely.
               </Text>

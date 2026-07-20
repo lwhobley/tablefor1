@@ -1,4 +1,5 @@
 import React from "react";
+import { FunctionsHttpError } from "@supabase/supabase-js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   supabase,
@@ -1036,6 +1037,12 @@ export function useSubscribePremium(userId: string | undefined) {
       const { data, error } = await supabase.functions.invoke(
         "create-premium-checkout-session",
       );
+      if (error instanceof FunctionsHttpError) {
+        const payload = await error.context.json().catch(() => null) as
+          | { error?: string }
+          | null;
+        throw new Error(payload?.error ?? "Failed to start Premium checkout");
+      }
       if (error) throw error;
       if (!data?.url) throw new Error("No checkout URL returned");
       return data.url as string;

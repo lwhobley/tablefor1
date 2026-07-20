@@ -36,7 +36,7 @@ export default function AuthCallback() {
           router.replace("/(tabs)/home");
           return;
         }
-        // INITIAL_SESSION fires synchronously on subscription — if there's
+        // INITIAL_SESSION fires synchronously on subscription; if there's
         // already a live session (e.g. user revisits callback), go home.
         if (event === "INITIAL_SESSION" && session) {
           router.replace("/(tabs)/home");
@@ -50,7 +50,7 @@ export default function AuthCallback() {
       }
     );
 
-    // Final fallback — if Supabase emits nothing within 10 s something is
+    // Final fallback: if Supabase emits nothing within 10 s something is
     // wrong (e.g. network error during exchange).
     const timer = setTimeout(
       () => setError("Sign-in timed out. Please try again."),
@@ -64,7 +64,7 @@ export default function AuthCallback() {
     <Screen scroll={false}>
       <View className="flex-1 items-center justify-center gap-4">
         <ActivityIndicator />
-        <Text className="text-ink/60">Signing you in…</Text>
+        <Text className="text-ink/60">Signing you in...</Text>
         {error && <Text className="text-sm text-rust">{error}</Text>}
       </View>
     </Screen>

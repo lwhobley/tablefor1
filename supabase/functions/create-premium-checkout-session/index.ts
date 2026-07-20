@@ -3,8 +3,8 @@
 // directly with no payment step at all. Premium is now only ever granted
 // by stripe-webhook after a real subscription checkout completes.
 
-import Stripe from "https://esm.sh/stripe@14";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import Stripe from "https://esm.sh/stripe@14.25.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.110.0";
 import { corsHeaders, preflight } from "../_shared/cors.ts";
 
 const PREMIUM_PRICE_CENTS = Number(Deno.env.get("PREMIUM_PRICE_CENTS") ?? 999);
@@ -20,6 +20,13 @@ Deno.serve(async (req) => {
     });
 
   try {
+    const stripeSecretKey = Deno.env.get("STRIPE_SECRET_KEY");
+    const appUrl = Deno.env.get("APP_URL");
+    if (!stripeSecretKey || !appUrl) {
+      console.error("Missing Premium checkout configuration");
+      return json({ error: "Premium checkout is not configured" }, 500);
+    }
+
     const authHeader = req.headers.get("Authorization") ?? "";
     const userClient = createClient(
       Deno.env.get("SUPABASE_URL")!,
@@ -37,20 +44,25 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    const { data: profile } = await admin
+    const { data: profile, error: profileError } = await admin
       .from("users")
       .select("is_premium, premium_expires_at, stripe_customer_id")
       .eq("id", caller.id)
       .maybeSingle();
+    if (profileError) throw profileError;
+    if (!profile) return json({ error: "Profile not found" }, 404);
 
-    const alreadyPremium =
-      !!profile?.is_premium &&
-      (!profile.premium_expires_at || new Date(profile.premium_expires_at) > new Date());
+    const alreadyPremium = !!profile?.is_premium &&
+      (!profile.premium_expires_at ||
+        new Date(profile.premium_expires_at) > new Date());
     if (alreadyPremium) {
-      return json({ error: "You already have an active Premium subscription" }, 400);
+      return json(
+        { error: "You already have an active Premium subscription" },
+        400,
+      );
     }
 
-    const stripe = new Stripe(Deno.env.get("STRIPE_SECRET_KEY")!, {
+    const stripe = new Stripe(stripeSecretKey, {
       apiVersion: "2024-04-10",
     });
 
@@ -63,13 +75,16 @@ Deno.serve(async (req) => {
       customerId = customer.id;
       // Persist immediately so retried/abandoned checkouts reuse the same
       // Stripe customer instead of creating orphaned duplicates.
-      await admin
+      const { error: customerUpdateError } = await admin
         .from("users")
         .update({ stripe_customer_id: customerId })
         .eq("id", caller.id);
+      if (customerUpdateError) throw customerUpdateError;
     }
 
-    const appUrl = Deno.env.get("APP_URL") || "http://localhost:8081";
+    const successUrl = new URL("/profile", appUrl);
+    successUrl.searchParams.set("premium", "success");
+    const cancelUrl = new URL("/profile", appUrl);
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customerId,
@@ -84,8 +99,8 @@ Deno.serve(async (req) => {
           quantity: 1,
         },
       ],
-      success_url: `${appUrl}/(tabs)/profile?premium=success`,
-      cancel_url: `${appUrl}/(tabs)/profile`,
+      success_url: successUrl.toString(),
+      cancel_url: cancelUrl.toString(),
       metadata: { user_id: caller.id },
       // Propagate onto the Subscription object itself (not just this
       // Checkout Session) so later customer.subscription.updated/deleted

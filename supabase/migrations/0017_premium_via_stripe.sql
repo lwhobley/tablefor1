@@ -61,6 +61,6 @@ REVOKE EXECUTE ON FUNCTION public.set_premium_from_stripe(uuid, boolean, timesta
 -- `premium_expires_at`, even if a webhook was missed. Recomputed lazily
 -- rather than needing a cron.
 CREATE OR REPLACE FUNCTION public.is_premium_active(p_is_premium boolean, p_expires_at timestamptz)
-RETURNS boolean LANGUAGE sql IMMUTABLE AS $$
+RETURNS boolean LANGUAGE sql IMMUTABLE SET search_path = '' AS $$
   SELECT p_is_premium AND (p_expires_at IS NULL OR p_expires_at > now());
 $$;

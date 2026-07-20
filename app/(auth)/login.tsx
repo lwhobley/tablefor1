@@ -74,7 +74,7 @@ export default function Login() {
             label="Password"
             value={password}
             onChangeText={setPassword}
-            placeholder="••••••••"
+            placeholder="Enter password"
             secureTextEntry
           />
           {error && <Text className="text-sm text-rust">{error}</Text>}

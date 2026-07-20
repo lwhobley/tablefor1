@@ -14,14 +14,21 @@ function sanitizeEmailHeader(value: unknown): string {
   return String(value ?? "").replace(/[\r\n]+/g, " ").trim();
 }
 
-function welcomeHtml(name: string): string {
+const DEFAULT_LOGO_URL =
+  "https://raw.githubusercontent.com/lwhobley/tablefor1/main/assets/images/table_for_2_logo.png";
+
+function welcomeHtml(name: string, logoUrl: string): string {
   const safeName = escapeHtml(name || "there");
+  const safeLogoUrl = escapeHtml(logoUrl);
 
   return `
     <!DOCTYPE html>
     <html>
       <body style="margin:0;background:#fff7ed;color:#1f1b16;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;line-height:1.6;">
         <div style="max-width:640px;margin:0 auto;padding:28px 20px;">
+          <div style="text-align:center;margin:0 0 18px 0;">
+            <img src="${safeLogoUrl}" width="210" alt="Table for 2" style="display:inline-block;width:210px;max-width:70%;height:auto;border:0;" />
+          </div>
           <div style="background:#1f1b16;color:#fff7ed;border-radius:16px;padding:28px;">
             <p style="margin:0 0 8px 0;color:#d7b56d;font-size:13px;letter-spacing:.08em;text-transform:uppercase;">Welcome to Table for 2</p>
             <h1 style="margin:0;font-size:30px;line-height:1.2;">Your next great dinner starts here.</h1>
@@ -72,7 +79,8 @@ Deno.serve(async (req) => {
 
   try {
     const resendApiKey = Deno.env.get("RESEND_API_KEY");
-    const fromEmail = Deno.env.get("WELCOME_FROM_EMAIL") ?? Deno.env.get("ADMIN_EMAIL");
+    const fromEmail = Deno.env.get("WELCOME_FROM_EMAIL") ??
+      Deno.env.get("ADMIN_EMAIL");
     if (!resendApiKey || !fromEmail) {
       console.error("Missing welcome email configuration");
       return json({ error: "Email service not configured" }, 500);
@@ -84,26 +92,57 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY")!,
       { global: { headers: { Authorization: authHeader } } },
     );
-    const { data: userData, error: userError } = await userClient.auth.getUser();
-    if (userError || !userData.user?.email) return json({ error: "Not authenticated" }, 401);
+    const { data: userData, error: userError } = await userClient.auth
+      .getUser();
+    if (userError || !userData.user?.email) {
+      return json({ error: "Not authenticated" }, 401);
+    }
 
     const admin = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    const staleBefore = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { error: staleClaimError } = await admin
+      .from("users")
+      .update({ welcome_email_status: null, welcome_email_claimed_at: null })
+      .eq("id", userData.user.id)
+      .eq("welcome_email_status", "sending")
+      .lt("welcome_email_claimed_at", staleBefore);
+
+    if (staleClaimError) throw staleClaimError;
+
+    const claimedAt = new Date().toISOString();
     const { data: profile, error: profileError } = await admin
       .from("users")
-      .select("name, welcome_email_sent_at")
+      .update({
+        welcome_email_status: "sending",
+        welcome_email_claimed_at: claimedAt,
+      })
       .eq("id", userData.user.id)
+      .is("welcome_email_status", null)
+      .is("welcome_email_sent_at", null)
+      .select("name")
       .maybeSingle();
 
     if (profileError) throw profileError;
-    if (profile?.welcome_email_sent_at) {
+    if (!profile) {
       return json({ success: true, skipped: true });
     }
 
+    const releaseClaim = async () => {
+      const { error } = await admin
+        .from("users")
+        .update({ welcome_email_status: null, welcome_email_claimed_at: null })
+        .eq("id", userData.user.id)
+        .eq("welcome_email_status", "sending")
+        .eq("welcome_email_claimed_at", claimedAt);
+      if (error) console.error("Failed to release welcome email claim:", error);
+    };
+
     const name = profile?.name ?? userData.user.user_metadata?.name ?? "there";
+    const logoUrl = Deno.env.get("AUTH_EMAIL_LOGO_URL") ?? DEFAULT_LOGO_URL;
     const resendResponse = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: {
@@ -114,23 +153,32 @@ Deno.serve(async (req) => {
         from: fromEmail,
         to: userData.user.email,
         subject: "Welcome to Table for 2",
-        html: welcomeHtml(name),
+        html: welcomeHtml(name, logoUrl),
         reply_to: sanitizeEmailHeader(fromEmail),
       }),
     });
 
     if (!resendResponse.ok) {
       console.error("Resend error:", await resendResponse.text());
+      await releaseClaim();
       return json({ error: "Failed to send welcome email" }, 500);
     }
 
-    const { error: updateError } = await admin
+    const { data: completedProfile, error: updateError } = await admin
       .from("users")
-      .update({ welcome_email_sent_at: new Date().toISOString() })
+      .update({
+        welcome_email_status: "sent",
+        welcome_email_sent_at: new Date().toISOString(),
+        welcome_email_claimed_at: null,
+      })
       .eq("id", userData.user.id)
-      .is("welcome_email_sent_at", null);
+      .eq("welcome_email_status", "sending")
+      .eq("welcome_email_claimed_at", claimedAt)
+      .select("id")
+      .maybeSingle();
 
     if (updateError) throw updateError;
+    if (!completedProfile) throw new Error("Welcome email claim was lost");
 
     return json({ success: true });
   } catch (error) {

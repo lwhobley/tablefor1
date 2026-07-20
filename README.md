@@ -34,10 +34,21 @@ to `/auth/callback`.
    the `avatars` bucket; `0003` installs the partner-scoped RPCs; `0015`
    onward add payout idempotency, booking-capacity enforcement, and the
    RLS/security fixes described in their header comments.
-3. In **Authentication → URL Configuration**, add your dev and prod URLs
-   (e.g. `http://localhost:8081`, `https://your-app.vercel.app`) as
-   redirect URLs.
-4. Copy the project URL + anon key into `.env`.
+3. In **Authentication -> URL Configuration**, add the exact production
+   callback `https://tablefour2.vercel.app/auth/callback` plus the local and
+   native callback URLs listed in `supabase/config.toml`.
+4. In **Authentication -> Sign In / Providers -> Email**, require users to
+   confirm their email address. Hosted Auth must report
+   `mailer_autoconfirm: false` for confirmation emails to be sent.
+5. Set `RESEND_API_KEY`, `WELCOME_FROM_EMAIL`, and optionally
+   `AUTH_FROM_EMAIL` / `AUTH_EMAIL_LOGO_URL` as Edge Function secrets.
+6. Deploy `auth-send-email` without JWT verification and create an HTTPS
+   **Send Email** Auth Hook for its function URL. Save the generated hook
+   secret as `SEND_EMAIL_HOOK_SECRET`. The function verifies Supabase's signed
+   webhook before sending branded Auth messages through Resend.
+7. Deploy `send-welcome-email` with JWT verification enabled. This remains a
+   separate post-confirmation message with the full consumer feature guide.
+8. Copy the project URL + public anon/publishable key into `.env`.
 
 The `handle_new_user` trigger creates a matching `public.users` row the
 first time someone confirms a magic link (with placeholder name `'New
@@ -108,6 +119,8 @@ Live under `supabase/functions/`:
 | `approve-availability` | Admin-only — turns a slot into an event |
 | `settle-payout` | Admin/cron-only — pays a partner out after an event completes |
 | `run-matching` | Admin/cron-only — groups confirmed bookings into matches |
+| `auth-send-email` | Supabase Auth Hook — sends branded confirmation, recovery, invite, and security emails through Resend |
+| `send-welcome-email` | Authenticated sign-in — sends one Resend welcome email after confirmation |
 | `reveal-match` | Admin/cron-only — reveals matches + fires the reveal email |
 | `resy-sniper` | Admin/cron-only — polls Resy for pending reservation slots |
 | `send-booking-confirmation`, `send-match-revealed`, `send-feedback-request` | Internal — called by the functions above, never directly by clients |

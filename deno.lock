@@ -1,0 +1,51 @@
+{
+  "version": "5",
+  "redirects": {
+    "https://esm.sh/@supabase/supabase-js@2": "https://esm.sh/@supabase/supabase-js@2.110.0",
+    "https://esm.sh/stripe@14": "https://esm.sh/stripe@14.25.0"
+  },
+  "remote": {
+    "https://esm.sh/@supabase/supabase-js@2.110.0": "b99c0ce7729f9de7797f836b93ab9ec94f1cfe079b4f937fa4144fe13525e979",
+    "https://esm.sh/standardwebhooks@1.0.0": "b8cafcb7e9a890c14c0eb74cb093f36333000122e2276cc204818f6a680c8ba9",
+    "https://esm.sh/stripe@14.25.0": "5c144d95e39f91ac9633debba114dc7260c0e312d70d7d89a8f90bf95ae65595"
+  },
+  "workspace": {
+    "packageJson": {
+      "dependencies": [
+        "npm:@babel/core@^7.25.2",
+        "npm:@expo/vector-icons@^14.0.2",
+        "npm:@react-navigation/native@^6.1.18",
+        "npm:@supabase/supabase-js@^2.45.4",
+        "npm:@tanstack/react-query@^5.51.23",
+        "npm:@types/react@~18.2.79",
+        "npm:eslint-config-expo@~7.1.2",
+        "npm:eslint@^8.57.0",
+        "npm:expo-constants@~16.0.2",
+        "npm:expo-font@~12.0.10",
+        "npm:expo-image-picker@15.1",
+        "npm:expo-linking@~6.3.1",
+        "npm:expo-router@~3.5.23",
+        "npm:expo-status-bar@~1.12.1",
+        "npm:expo-web-browser@~13.0.3",
+        "npm:expo@~51.0.28",
+        "npm:nativewind@^4.1.10",
+        "npm:react-dom@18.2.0",
+        "npm:react-native-gesture-handler@~2.16.1",
+        "npm:react-native-reanimated@~3.10.1",
+        "npm:react-native-safe-area-context@4.10.5",
+        "npm:react-native-screens@3.31.1",
+        "npm:react-native-svg@15.2.0",
+        "npm:react-native-url-polyfill@2",
+        "npm:react-native-web@~0.19.10",
+        "npm:react-native@0.74.5",
+        "npm:react@18.2.0",
+        "npm:tailwindcss@^3.4.10",
+        "npm:typescript@~5.3.3",
+        "npm:vitest@^4.1.9"
+      ],
+      "overrides": {
+        "expo-font": "~12.0.10"
+      }
+    }
+  }
+}
