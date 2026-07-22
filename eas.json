@@ -14,12 +14,14 @@
     "preview": {
       "distribution": "internal",
       "ios": {
+        "image": "latest",
         "resourceClass": "m-medium"
       }
     },
     "production": {
       "autoIncrement": true,
       "ios": {
+        "image": "latest",
         "resourceClass": "m-medium"
       }
     }
