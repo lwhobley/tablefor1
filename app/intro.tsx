@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { View, Text, Image, Animated, Pressable, useWindowDimensions } from "react-native";
 import { useRouter } from "expo-router";
-import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 
 export default function IntroScreen() {
@@ -86,9 +85,11 @@ export default function IntroScreen() {
   const logoWidth = Math.min(width - 48, 360);
   const logoHeight = logoWidth * (1012 / 1844);
 
+  // Deliberately NOT wrapped in <Screen>: its cream background and content
+  // insets (px-4 pt-3 pb-8) frame the artwork in a visible box. The intro
+  // is a full-bleed cinematic, edge to edge.
   return (
-    <Screen scroll={false}>
-      <View className="flex-1 justify-center items-center bg-stone-950 w-full h-full">
+    <View className="flex-1 justify-center items-center bg-stone-950 w-full h-full">
         {step < 3 ? (
           <Pressable onPress={handleSkip} className="flex-1 w-full h-full justify-center items-center">
             <Animated.View style={{ opacity: fadeAnim, width: "100%", height: "100%", position: "absolute" }}>
@@ -128,6 +129,5 @@ export default function IntroScreen() {
           </Animated.View>
         )}
       </View>
-    </Screen>
   );
 }
