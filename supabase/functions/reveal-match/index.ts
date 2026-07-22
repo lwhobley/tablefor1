@@ -24,6 +24,38 @@ Deno.serve(async (req) => {
       throw new Error("Missing Supabase configuration");
     }
 
+    // Revealing tells diners where to show up. For Resy-integrated events,
+    // never reveal unless the real reservation is actually secured
+    // ('booked') or the event has no Resy integration at all ('none') —
+    // revealing a 'pending' or 'failed' event sends people to a restaurant
+    // that has no table for them.
+    const eventCheckResponse = await fetch(
+      `${supabaseUrl}/rest/v1/events?id=eq.${event_id}&select=resy_booking_status`,
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${supabaseServiceKey}`,
+          apikey: supabaseServiceKey,
+        },
+      }
+    );
+    const eventRows = await eventCheckResponse.json();
+    const resyStatus = Array.isArray(eventRows)
+      ? eventRows[0]?.resy_booking_status
+      : undefined;
+    if (resyStatus === "pending" || resyStatus === "failed") {
+      return new Response(
+        JSON.stringify({
+          error:
+            `Resy reservation for this event is '${resyStatus}' — the table is not secured. Resolve the reservation before revealing the match.`,
+        }),
+        {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
     // Fetch all matches for this event
     const matchesResponse = await fetch(
       `${supabaseUrl}/rest/v1/matches?event_id=eq.${event_id}&select=id,user_ids,revealed_at`,

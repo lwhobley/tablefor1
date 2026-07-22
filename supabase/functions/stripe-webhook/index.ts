@@ -100,7 +100,7 @@ Deno.serve(async (req) => {
       try {
         const { data: booking } = await admin
           .from("bookings")
-          .select("id, event_id, status, event:events(price_cents)")
+          .select("id, event_id, status, stripe_payment_id, event:events(price_cents)")
           .eq("id", bookingId)
           .maybeSingle();
 
@@ -228,6 +228,28 @@ Deno.serve(async (req) => {
             );
           } catch (mailErr) {
             console.error("Confirmation email failed:", mailErr);
+          }
+        } else {
+          // The booking is already resolved (confirmed / cancelled /
+          // refunded). If this event carries a DIFFERENT successful payment
+          // than the one recorded on the booking, the user paid twice —
+          // e.g. two checkout sessions opened for the same pending booking
+          // and both completed. Refund the extra charge instead of silently
+          // swallowing it. A true webhook replay of the original session has
+          // the same payment_intent and stays a no-op.
+          const paymentIntent = session.payment_intent as string | null;
+          if (paymentIntent && paymentIntent !== booking.stripe_payment_id) {
+            console.error(
+              `Duplicate payment ${paymentIntent} for already-${booking.status} booking ${bookingId}; refunding.`,
+            );
+            try {
+              await stripe.refunds.create({ payment_intent: paymentIntent });
+            } catch (refundErr) {
+              console.error(
+                `Refund of duplicate payment ${paymentIntent} for booking ${bookingId} failed — needs manual reconciliation:`,
+                refundErr,
+              );
+            }
           }
         }
       } catch (error) {

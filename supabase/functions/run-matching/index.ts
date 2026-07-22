@@ -27,7 +27,7 @@ Deno.serve(async (req) => {
 
     // Fetch event details
     const eventResponse = await fetch(
-      `${supabaseUrl}/rest/v1/events?id=eq.${event_id}&select=group_size,status`,
+      `${supabaseUrl}/rest/v1/events?id=eq.${event_id}&select=group_size,status,resy_booking_status`,
       {
         method: "GET",
         headers: {
@@ -46,6 +46,22 @@ Deno.serve(async (req) => {
     }
 
     const event = events[0];
+
+    // Never match diners onto an event whose real-world Resy reservation
+    // failed — everything downstream (reveal, emails) assumes a table
+    // actually exists at the restaurant.
+    if (event.resy_booking_status === "failed") {
+      return new Response(
+        JSON.stringify({
+          error:
+            "Resy reservation for this event failed — resolve the reservation (or cancel and refund the event) before matching diners.",
+        }),
+        {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
 
     // Check if matching already done
     const existingMatches = await fetch(

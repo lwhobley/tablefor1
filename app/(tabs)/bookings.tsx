@@ -104,6 +104,18 @@ function BookingCard({
       </View>
 
       {/* Actions */}
+      {booking.status === "pending" && !isPast && (
+        <Button
+          label="Complete payment"
+          variant="secondary"
+          onPress={() =>
+            router.push({
+              pathname: "/checkout/[bookingId]",
+              params: { bookingId: booking.id, eventId: booking.event_id },
+            })
+          }
+        />
+      )}
       {canCancel && (
         <Pressable
           onPress={() => {

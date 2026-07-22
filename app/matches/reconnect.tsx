@@ -127,7 +127,7 @@ export default function ReconnectScreen() {
             {sparksLoading ? (
               <ActivityIndicator size="large" color="#C2410C" />
             ) : mutualSparks && mutualSparks.length > 0 ? (
-              mutualSparks.map((spark: any) => {
+              mutualSparks.filter((spark: any) => spark.user).map((spark: any) => {
                 const hasPendingRequest = requests?.some(
                   (r: any) => r.status === "pending" && (r.user_id === spark.user.id || r.target_user_id === spark.user.id)
                 );
@@ -190,7 +190,10 @@ export default function ReconnectScreen() {
                 .filter((r: any) => r.status !== "declined")
                 .map((req: any) => {
                   const isRecipient = req.target_user_id === userId;
-                  const partner = isRecipient ? req.sender : req.recipient;
+                  // Fall back to a placeholder rather than crashing if a
+                  // profile payload is ever missing.
+                  const partner = (isRecipient ? req.sender : req.recipient) ??
+                    { id: null, name: "A fellow diner", photo_url: null };
 
                   return (
                     <View key={req.id} className="border border-ink/10 rounded-2xl bg-white p-4 gap-3">

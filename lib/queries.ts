@@ -27,6 +27,7 @@ import {
   type MatchPoll,
 } from "./supabase";
 import { getChatPhotoSignedUrl } from "./uploadChatPhoto";
+import { getStoryPhotoSignedUrl } from "./uploadStory";
 
 export function useProfile(userId: string | undefined) {
   return useQuery({
@@ -990,7 +991,19 @@ export function useDinnerStories() {
         `)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data ?? []) as unknown as DinnerStoryWithDetails[];
+      const rows = (data ?? []) as unknown as DinnerStoryWithDetails[];
+      // The stories bucket is private now — swap stored paths (and legacy
+      // public URLs) for short-lived signed URLs before render.
+      return Promise.all(
+        rows.map(async (row) => {
+          if (!row.photo_url) return row;
+          try {
+            return { ...row, photo_url: await getStoryPhotoSignedUrl(row.photo_url) };
+          } catch {
+            return row;
+          }
+        }),
+      );
     },
   });
 }
@@ -1290,17 +1303,26 @@ export function useCycleRouletteOption(userId: string | undefined) {
 export function useOptOutRoulette(userId: string | undefined) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (dateString: string) => {
+    mutationFn: async ({ optInId, date }: { optInId: string; date: string }) => {
       if (!userId) throw new Error("Not signed in");
-      const { error } = await supabase
+      // Delete by the known row id, not a recomputed date string — the
+      // client's UTC "today" rolls over mid-evening in US timezones, so a
+      // date-keyed delete could match zero rows while the UI reported
+      // success, leaving the user opted in to a dinner they left.
+      const { data, error } = await supabase
         .from("roulette_opt_ins")
         .delete()
+        .eq("id", optInId)
         .eq("user_id", userId)
-        .eq("date", dateString);
+        .select("id");
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Couldn't find your roulette entry — pull to refresh and try again.");
+      }
+      return date;
     },
-    onSuccess: (_, dateString) => {
-      qc.invalidateQueries({ queryKey: ["rouletteOptIn", userId, dateString] });
+    onSuccess: (_, { date }) => {
+      qc.invalidateQueries({ queryKey: ["rouletteOptIn", userId, date] });
     },
   });
 }
@@ -1325,21 +1347,12 @@ export function useReconnectRequests(userId: string | undefined) {
     queryKey: ["reconnectRequests", userId],
     enabled: !!userId,
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("reconnect_requests")
-        .select(`
-          id, user_id, target_user_id, status, event_id, created_at,
-          sender:users!reconnect_requests_user_id_fkey(id, name, photo_url),
-          recipient:users!reconnect_requests_target_user_id_fkey(id, name, photo_url)
-        `)
-        .or(`user_id.eq.${userId},target_user_id.eq.${userId}`);
+      // A direct users embed comes back null under RLS (users is
+      // own-row-only), which crashed this screen for every request. The
+      // RPC exposes just the counterparty's id/name/photo_url.
+      const { data, error } = await supabase.rpc("get_my_reconnect_requests");
       if (error) throw error;
-      const formatted = (data ?? []).map((row: any) => ({
-        ...row,
-        sender: Array.isArray(row.sender) ? row.sender[0] : row.sender,
-        recipient: Array.isArray(row.recipient) ? row.recipient[0] : row.recipient,
-      }));
-      return formatted as ReconnectRequest[];
+      return (data ?? []) as ReconnectRequest[];
     },
   });
 }
@@ -1549,27 +1562,14 @@ export function useMutualSparks(userId: string | undefined) {
     queryKey: ["mutualSparks", userId],
     enabled: !!userId,
     queryFn: async () => {
-      const { data: mySparks, error: myErr } = await supabase
-        .from("sparks")
-        .select("match_id, target_user_id, target:users!sparks_target_user_id_fkey(id, name, photo_url)")
-        .eq("user_id", userId!)
-        .eq("sparked", true);
-      if (myErr) throw myErr;
-
-      const { data: theirSparks, error: theirErr } = await supabase
-        .from("sparks")
-        .select("match_id, user_id")
-        .eq("target_user_id", userId!)
-        .eq("sparked", true);
-      if (theirErr) throw theirErr;
-
-      const mutual = (mySparks ?? []).filter((s) => 
-        (theirSparks ?? []).some((ts) => ts.match_id === s.match_id && ts.user_id === s.target_user_id)
-      );
-
-      return mutual.map((m) => ({
+      // The users embed on sparks always resolved null under RLS (users is
+      // own-row-only), crashing the Mutual Sparks tab. The RPC joins the
+      // reciprocal spark and returns just the partner's id/name/photo_url.
+      const { data, error } = await supabase.rpc("get_my_mutual_sparks");
+      if (error) throw error;
+      return (data ?? []).map((m: { match_id: string; target: unknown }) => ({
         matchId: m.match_id,
-        user: m.target as unknown as { id: string; name: string; photo_url: string | null }
+        user: m.target as { id: string; name: string; photo_url: string | null },
       }));
     }
   });

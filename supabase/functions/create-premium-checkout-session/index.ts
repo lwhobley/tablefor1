@@ -82,6 +82,29 @@ Deno.serve(async (req) => {
       if (customerUpdateError) throw customerUpdateError;
     }
 
+    // The DB's is_premium flag lags behind Stripe by however long the
+    // checkout->webhook round trip takes, so it can't stop a double-tap (or
+    // two tabs) from minting two live subscriptions that each bill monthly.
+    // Ask Stripe directly: any active/trialing/past_due/incomplete
+    // subscription on this customer means one is live or mid-checkout.
+    const existingSubs = await stripe.subscriptions.list({
+      customer: customerId,
+      status: "all",
+      limit: 10,
+    });
+    const liveSub = existingSubs.data.find((s) =>
+      ["active", "trialing", "past_due", "incomplete"].includes(s.status)
+    );
+    if (liveSub) {
+      return json(
+        {
+          error:
+            "A Premium subscription already exists or is being processed for your account. If you just subscribed, give it a minute to activate.",
+        },
+        409,
+      );
+    }
+
     const successUrl = new URL("/profile", appUrl);
     successUrl.searchParams.set("premium", "success");
     const cancelUrl = new URL("/profile", appUrl);

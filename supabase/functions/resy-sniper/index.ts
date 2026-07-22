@@ -197,7 +197,19 @@ Deno.serve(async (req) => {
       }
 
       const bookData = await bookRes.json();
-      const resyToken = bookData.resy_token;
+      const resyToken = typeof bookData.resy_token === "object"
+        ? bookData.resy_token?.value
+        : bookData.resy_token;
+      // A 200 from /3/book without a resy_token is NOT a confirmed
+      // reservation — treating it as booked would permanently mask the
+      // failure (the cron only retries 'pending' rows).
+      if (!resyToken) {
+        throw new Error(
+          `Resy book call returned OK but no resy_token; treating as failed. Body: ${
+            JSON.stringify(bookData).slice(0, 500)
+          }`,
+        );
+      }
       console.log(`SUCCESS! Booked table. Resy Token: ${resyToken}`);
 
       // 5. Update DB event status to booked

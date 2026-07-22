@@ -255,12 +255,12 @@ function RouletteBanner({
       return;
     }
     try {
-        if (isActiveOptIn) {
-          await optOutRoulette.mutateAsync(dateString);
+        if (isActiveOptIn && optIn) {
+          await optOutRoulette.mutateAsync({ optInId: optIn.id, date: dateString });
           Alert.alert("Opted Out", "You opted out of Dinner Roulette for tonight.");
         } else {
           if (optIn?.status === "expired") {
-            await optOutRoulette.mutateAsync(dateString);
+            await optOutRoulette.mutateAsync({ optInId: optIn.id, date: dateString });
           }
           await optInRoulette.mutateAsync({
           city: profile.travel_city || profile.city,

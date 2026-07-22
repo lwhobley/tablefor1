@@ -95,33 +95,77 @@ Deno.serve(async (req) => {
     });
   }
 
-  const transfer = await stripe.transfers.create(
-    {
-      amount: partnerShare,
-      currency: "usd",
-      destination: stripeAccount,
-      metadata: { event_id, covers: String(covers ?? 0) },
-    },
-    { idempotencyKey: `settle-payout:${event_id}` },
-  );
-
-  // Record the payout before returning. The unique(event_id) constraint
-  // guarantees a concurrent duplicate call can't insert a second row even
-  // if it raced past the maybeSingle() check above; it will fail here and
-  // the operator will see a distinct error rather than a silent double-pay.
-  const { error: insertErr } = await supabase.from("payouts").insert({
+  // Claim BEFORE transferring. Stripe's idempotency key only dedupes for 24
+  // hours, so the DB row — with its unique(event_id) constraint — is the
+  // durable guard against double payouts. Insert a claim row first (null
+  // transfer id); a duplicate/concurrent call fails this insert and never
+  // reaches the transfer. The failure mode flips from "may pay twice" to
+  // "claim stuck, operator unblocks" — the safe direction for money.
+  const { error: claimErr } = await supabase.from("payouts").insert({
     event_id,
     restaurant_id: event.restaurant_id,
     covers: covers ?? 0,
     gross_cents: gross,
     platform_fee_bps: PLATFORM_FEE_BPS,
     transferred_cents: partnerShare,
-    stripe_transfer_id: transfer.id,
+    stripe_transfer_id: null,
   });
-  if (insertErr) {
+  if (claimErr) {
+    const { data: existing } = await supabase
+      .from("payouts")
+      .select("stripe_transfer_id, transferred_cents, covers")
+      .eq("event_id", event_id)
+      .maybeSingle();
+    if (existing?.stripe_transfer_id) {
+      return new Response(
+        JSON.stringify({
+          transferred: existing.transferred_cents,
+          covers: existing.covers,
+          transfer_id: existing.stripe_transfer_id,
+          already_settled: true,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    return new Response(
+      JSON.stringify({
+        error:
+          "A payout claim for this event exists without a recorded transfer — a previous attempt may have failed mid-flight. Resolve manually before retrying.",
+      }),
+      { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+
+  let transfer;
+  try {
+    transfer = await stripe.transfers.create(
+      {
+        amount: partnerShare,
+        currency: "usd",
+        destination: stripeAccount,
+        metadata: { event_id, covers: String(covers ?? 0) },
+      },
+      { idempotencyKey: `settle-payout:${event_id}` },
+    );
+  } catch (transferErr) {
+    // Transfer definitively failed — release the claim so a retry can run.
+    await supabase.from("payouts").delete().eq("event_id", event_id).is(
+      "stripe_transfer_id",
+      null,
+    );
+    throw transferErr;
+  }
+
+  const { error: recordErr } = await supabase
+    .from("payouts")
+    .update({ stripe_transfer_id: transfer.id })
+    .eq("event_id", event_id);
+  if (recordErr) {
+    // Money moved and the claim row exists (blocking re-pays); only the
+    // transfer id is missing. Log loudly for reconciliation.
     console.error(
-      `Payout row insert failed after a real Stripe transfer (transfer_id=${transfer.id}, event_id=${event_id}). Needs manual reconciliation:`,
-      insertErr,
+      `Failed to record transfer id after a real Stripe transfer (transfer_id=${transfer.id}, event_id=${event_id}). Needs manual reconciliation:`,
+      recordErr,
     );
   }
 

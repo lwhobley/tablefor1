@@ -67,6 +67,11 @@ export default function EventDetail() {
 
   const myBooking = bookings?.find((b: any) => b.event_id === id && b.status === "confirmed");
   const isBooked = !!myBooking;
+  // A pending booking is an unfinished checkout — offer to resume it
+  // instead of dead-ending on "Event Full" (critical for +1 invitees,
+  // whose claim consumed the invite the moment they first tapped Book).
+  const pendingBooking = bookings?.find((b: any) => b.event_id === id && b.status === "pending");
+  const claimedByMe = !!(invite && invite.invitee_id === userId && !invite.used_at);
   const isInviteValid = !!(invite && !invite.used_at && !invite.invitee_id);
 
   const handleBook = async () => {
@@ -77,7 +82,10 @@ export default function EventDetail() {
 
     try {
       let plusOneInviteId: string | undefined = undefined;
-      if (invite_code && isInviteValid) {
+      if (invite_code && claimedByMe) {
+        // Already claimed on a previous attempt — reuse it, don't re-claim.
+        plusOneInviteId = invite!.id;
+      } else if (invite_code && isInviteValid) {
         const claimed = await claimInvite.mutateAsync({ inviteCode: invite_code });
         plusOneInviteId = claimed.id;
       }
@@ -128,7 +136,7 @@ export default function EventDetail() {
   const isLocked = isEarlyAccess && !profile?.is_premium;
 
   const spotsLeft = Math.max(0, event.group_size - event.confirmed_covers);
-  const isFull = spotsLeft === 0 && !isInviteValid;
+  const isFull = spotsLeft === 0 && !isInviteValid && !claimedByMe;
   const eventDate = new Date(event.event_date);
   const fit = getEventMatchFit(profile, event);
   const formattedDate = eventDate.toLocaleDateString("en-US", {
@@ -179,8 +187,13 @@ export default function EventDetail() {
             {invite ? (
               isInviteValid ? (
                 <Text className="text-sm text-amber-900 leading-5">
-                  You've been invited by <Text className="font-bold">{invite.sender?.name}</Text>! 
+                  You've been invited by <Text className="font-bold">{invite.sender?.name}</Text>!
                   Accept this invite to skip the waitlist and secure a confirmed seat at this table.
+                </Text>
+              ) : claimedByMe ? (
+                <Text className="text-sm text-amber-900 leading-5">
+                  You've claimed this invite — finish booking below to lock in
+                  your seat.
                 </Text>
               ) : (
                 <Text className="text-sm text-rose-800 font-medium">
@@ -554,12 +567,24 @@ export default function EventDetail() {
 
         {/* Book button */}
         <View className="gap-2">
-          <Button
-            label={isBooked ? "You're Booked" : isLocked ? "Premium Early Access" : isFull ? "Event Full" : "Book Now"}
-            disabled={isBooked || isLocked || isFull || createBooking.isPending}
-            loading={createBooking.isPending}
-            onPress={handleBook}
-          />
+          {pendingBooking && !isBooked ? (
+            <Button
+              label="Resume checkout"
+              onPress={() =>
+                router.push({
+                  pathname: "/checkout/[bookingId]",
+                  params: { bookingId: pendingBooking.id, eventId: id },
+                })
+              }
+            />
+          ) : (
+            <Button
+              label={isBooked ? "You're Booked" : isLocked ? "Premium Early Access" : isFull ? "Event Full" : "Book Now"}
+              disabled={isBooked || isLocked || isFull || createBooking.isPending || claimInvite.isPending}
+              loading={createBooking.isPending || claimInvite.isPending}
+              onPress={handleBook}
+            />
+          )}
           <Button label="Back" variant="ghost" onPress={() => router.back()} />
         </View>
       </ScrollView>
