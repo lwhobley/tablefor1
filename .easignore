@@ -1,0 +1,13 @@
+# Ignore dependencies and build artifacts from EAS build tarball
+node_modules/
+.expo/
+dist/
+web-build/
+.env
+.env.local
+*.tsbuildinfo
+.DS_Store
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+.vercel

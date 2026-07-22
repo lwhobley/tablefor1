@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "Table for 2",
+    "slug": "table-for-2",
+    "scheme": "tablefor2",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "backgroundColor": "#FAF3E3",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "cover",
+      "backgroundColor": "#FAF3E3"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.tablefor2.app",
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Table for 2 to use your camera so you can check in with a selfie at the table.",
+        "NSPhotoLibraryUsageDescription": "Allow Table for 2 to access your photos so you can upload a profile picture and share dinner photos.",
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "package": "com.tablefor2.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFF7ED"
+      }
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Table for 2 to access your photos so you can upload a profile picture.",
+          "cameraPermission": "Allow Table for 2 to use your camera so you can check in with a selfie at the table."
+        }
+      ],
+      "expo-font"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "tsconfigPaths": true
+    },
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "81bdbfcb-1283-4bb5-98a3-97de4d68f4e5"
+      }
+    },
+    "owner": "loungeabilityllc"
+  }
+}
