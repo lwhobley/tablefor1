@@ -92,7 +92,7 @@ Deno.serve(async (req) => {
       status: "all",
       limit: 10,
     });
-    const liveSub = existingSubs.data.find((s) =>
+    const liveSub = existingSubs.data.find((s: Stripe.Subscription) =>
       ["active", "trialing", "past_due", "incomplete"].includes(s.status)
     );
     if (liveSub) {
