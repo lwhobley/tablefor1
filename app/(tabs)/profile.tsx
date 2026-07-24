@@ -361,22 +361,33 @@ export default function ProfileScreen() {
               </View>
 
               <Button
-                label={subscribePremium.isPending ? "Redirecting to checkout..." : "Upgrade to Premium ($9.99/mo)"}
+                label={
+                  subscribePremium.isPending
+                    ? (Platform.OS === "ios" ? "Opening Apple purchase..." : "Redirecting to checkout...")
+                    : (Platform.OS === "ios" ? "Subscribe with Apple" : "Upgrade to Premium ($9.99/mo)")
+                }
                 variant="primary"
                 loading={subscribePremium.isPending}
                 onPress={() => {
                   setPremiumError(null);
                   subscribePremium.mutate(undefined, {
-                    onSuccess: async (url) => {
-                      if (Platform.OS === "web" && typeof window !== "undefined") {
-                        window.location.assign(url);
+                    onSuccess: async (result) => {
+                      if (!result) {
+                        Alert.alert(
+                          "Premium request sent",
+                          "Your subscription is being synced. Give it a moment, then refresh your profile if needed.",
+                        );
                         return;
                       }
-                      const supported = await Linking.canOpenURL(url);
+                      if (Platform.OS === "web" && typeof window !== "undefined") {
+                        window.location.assign(result);
+                        return;
+                      }
+                      const supported = await Linking.canOpenURL(result);
                       if (supported) {
-                        await Linking.openURL(url);
+                        await Linking.openURL(result);
                       } else {
-                        Alert.alert("Cannot open Stripe Checkout");
+                        Alert.alert("Cannot open checkout");
                       }
                     },
                     onError: (err) => {
@@ -394,7 +405,9 @@ export default function ProfileScreen() {
                 </Text>
               )}
               <Text className="text-center text-xs text-ink/50">
-                You'll be redirected to Stripe to complete payment securely.
+                {Platform.OS === "ios"
+                  ? "Apple handles billing for subscriptions on iPhone and iPad."
+                  : "You'll be redirected to Stripe to complete payment securely."}
               </Text>
             </View>
           )

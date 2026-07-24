@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Platform } from "react-native";
 import {
   supabase,
   type EventRow,
@@ -28,6 +29,7 @@ import {
 } from "./supabase";
 import { getChatPhotoSignedUrl } from "./uploadChatPhoto";
 import { getStoryPhotoSignedUrl } from "./uploadStory";
+import { startRevenueCatPurchase } from "./revenuecat";
 
 export function useProfile(userId: string | undefined) {
   return useQuery({
@@ -1077,13 +1079,24 @@ export function useMyStoryForEvent(eventId: string | undefined, userId: string |
   });
 }
 
-// Starts a real Stripe subscription checkout instead of instantly granting
-// premium client-side. Returns the hosted checkout URL to open; premium is
-// only actually granted once stripe-webhook sees the subscription complete.
+// On iOS, starts a RevenueCat purchase flow and syncs the entitlement back
+// into Supabase. Everywhere else, falls back to the existing hosted Stripe
+// checkout flow for Premium.
 export function useSubscribePremium(userId: string | undefined) {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
       if (!userId) throw new Error("Not signed in");
+      if (Platform.OS === "ios") {
+        await startRevenueCatPurchase(userId);
+        try {
+          await supabase.functions.invoke("sync-revenuecat-premium");
+        } catch (syncError) {
+          console.warn("[premium] RevenueCat sync failed", syncError);
+        }
+        qc.invalidateQueries({ queryKey: ["profile", userId] });
+        return null;
+      }
       const { data, error } = await supabase.functions.invoke(
         "create-premium-checkout-session",
       );
@@ -1846,8 +1859,6 @@ export function useSubmitConciergeRequest(userId: string | undefined) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["concierge-requests", userId] }),
   });
 }
-
-
 
 
 

@@ -8,6 +8,7 @@ import { StatusBar } from "expo-status-bar";
 
 import { AuthProvider, useAuth } from "../lib/auth";
 import { isOnboarded } from "../lib/onboarding";
+import { useRevenueCatIdentity } from "../lib/revenuecat";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -17,6 +18,7 @@ function AuthGate() {
   const { session, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
+  useRevenueCatIdentity(session?.user.id);
 
   useEffect(() => {
     if (loading) return;
