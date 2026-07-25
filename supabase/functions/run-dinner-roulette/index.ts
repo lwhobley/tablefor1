@@ -166,13 +166,13 @@ Deno.serve(async (req) => {
           .eq("id", optIn.id);
 
         // 6. Update matches row if it exists
-        const { data: match } = await admin
+        const { data: matches } = await admin
           .from("matches")
           .select("id, user_ids")
-          .eq("event_id", event.id)
-          .maybeSingle();
+          .eq("event_id", event.id);
 
-        if (match) {
+        if (matches && matches.length > 0) {
+          const match = matches[0];
           const updatedUserIds = [...match.user_ids, optIn.user_id];
           await admin
             .from("matches")

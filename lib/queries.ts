@@ -951,7 +951,7 @@ export function useCastCityVote(userId: string | undefined) {
       return data as CityVote;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["expansion-cities", userId] });
+      qc.invalidateQueries({ queryKey: ["expansion-cities"] });
     },
   });
 }
@@ -969,7 +969,7 @@ export function useRemoveCityVote(userId: string | undefined) {
       if (error) throw error;
     },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["expansion-cities", userId] });
+      qc.invalidateQueries({ queryKey: ["expansion-cities"] });
     },
   });
 }

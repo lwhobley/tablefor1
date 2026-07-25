@@ -80,7 +80,7 @@ export default function ReconnectScreen() {
             setSelectedRequest(null);
             setSelectedRestaurantId("");
             setEventDate("");
-            router.push(`/matches/${res.event_id}`);
+            router.push(`/matches/${res.match_id}`);
           },
         },
       ]);

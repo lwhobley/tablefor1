@@ -224,8 +224,8 @@ export function DiningSwipeDeck({
 
       {currentEvent ? (
         <SwipeCard
-          key={`${mode}-${currentEvent.id}-${currentIndex}`}
-          cardKey={`${mode}-${currentEvent.id}-${currentIndex}`}
+          key={`${mode}-${currentEvent.id}-${mode === "maybes" ? maybeIndex : browseIndex}`}
+          cardKey={`${mode}-${currentEvent.id}-${mode === "maybes" ? maybeIndex : browseIndex}`}
           onDecision={decide}
         >
           {renderCard(currentEvent, events.findIndex((event) => event.id === currentEvent.id))}
