@@ -15,7 +15,7 @@ import {
   LANGUAGE_OPTIONS,
 } from "../../components/preferences";
 import { useAuth } from "../../lib/auth";
-import { useProfile, useUpdateProfile, useStreak, useTrustScore, useBadges, useSubscribePremium, useToggleWindowSeat, useFavoriteRestaurants, useSubmitRestaurantRecommendation, useIcebreakerPrompts, useUserIcebreakers, useSaveUserIcebreaker, useDeleteUserIcebreaker } from "../../lib/queries";
+import { useProfile, useUpdateProfile, useStreak, useTrustScore, useBadges, useSubscribePremium, useToggleWindowSeat, useFavoriteRestaurants, useSubmitRestaurantRecommendation, useIcebreakerPrompts, useUserIcebreakers, useSaveUserIcebreaker, useDeleteUserIcebreaker, type IcebreakerPrompt, type UserIcebreaker } from "../../lib/queries";
 import { uploadAvatar } from "../../lib/uploadAvatar";
 import { StreakBadge } from "../../components/StreakBadge";
 import { BadgeList } from "../../components/BadgeList";
@@ -107,6 +107,8 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (!profile) return;
+    // This is editable form state, initialized when the profile query resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setName(profile.name);
     setPhoto(profile.photo_url);
     setCity([profile.city]);
@@ -361,22 +363,33 @@ export default function ProfileScreen() {
               </View>
 
               <Button
-                label={subscribePremium.isPending ? "Redirecting to checkout..." : "Upgrade to Premium ($9.99/mo)"}
+                label={
+                  subscribePremium.isPending
+                    ? (Platform.OS === "ios" ? "Opening Apple purchase..." : "Redirecting to checkout...")
+                    : (Platform.OS === "ios" ? "Subscribe with Apple" : "Upgrade to Premium ($9.99/mo)")
+                }
                 variant="primary"
                 loading={subscribePremium.isPending}
                 onPress={() => {
                   setPremiumError(null);
                   subscribePremium.mutate(undefined, {
-                    onSuccess: async (url) => {
-                      if (Platform.OS === "web" && typeof window !== "undefined") {
-                        window.location.assign(url);
+                    onSuccess: async (result) => {
+                      if (!result) {
+                        Alert.alert(
+                          "Premium request sent",
+                          "Your subscription is being synced. Give it a moment, then refresh your profile if needed.",
+                        );
                         return;
                       }
-                      const supported = await Linking.canOpenURL(url);
+                      if (Platform.OS === "web" && typeof window !== "undefined") {
+                        window.location.assign(result);
+                        return;
+                      }
+                      const supported = await Linking.canOpenURL(result);
                       if (supported) {
-                        await Linking.openURL(url);
+                        await Linking.openURL(result);
                       } else {
-                        Alert.alert("Cannot open Stripe Checkout");
+                        Alert.alert("Cannot open checkout");
                       }
                     },
                     onError: (err) => {
@@ -394,7 +407,9 @@ export default function ProfileScreen() {
                 </Text>
               )}
               <Text className="text-center text-xs text-ink/50">
-                You'll be redirected to Stripe to complete payment securely.
+                {Platform.OS === "ios"
+                  ? "Apple handles billing for subscriptions on iPhone and iPad."
+                  : "You'll be redirected to Stripe to complete payment securely."}
               </Text>
             </View>
           )
@@ -480,7 +495,8 @@ export default function ProfileScreen() {
                     placeholder="e.g. Incredible carbonara, perfect for solo diners!"
                     multiline
                     numberOfLines={2}
-                    className="rounded-lg border border-ink/10 bg-cream/30 p-2.5 text-sm text-ink min-h-[50px] textAlignVertical-top"
+                    className="rounded-lg border border-ink/10 bg-cream/30 p-2.5 text-sm text-ink min-h-[50px]"
+                    style={{ textAlignVertical: 'top' }}
                   />
                 </View>
 
@@ -524,7 +540,7 @@ export default function ProfileScreen() {
           {/* List existing icebreakers */}
           {userIcebreakers && userIcebreakers.length > 0 && (
             <View className="gap-2 mt-1">
-              {userIcebreakers.map((ib: any) => (
+              {userIcebreakers.map((ib: UserIcebreaker) => (
                 <View key={ib.id} className="flex-row items-center justify-between border border-ink/10 rounded-xl bg-cream/15 p-3">
                   <View className="flex-1 pr-2">
                     <Text className="text-xs font-bold text-rust uppercase tracking-wider">{ib.prompt?.prompt_text}</Text>
@@ -549,8 +565,8 @@ export default function ProfileScreen() {
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} className="py-1">
                   <View className="flex-row gap-2">
                     {(prompts ?? [])
-                      .filter((p: any) => !userIcebreakers?.some((ib: any) => ib.prompt_id === p.id))
-                      .map((p: any) => {
+                      .filter((p: IcebreakerPrompt) => !userIcebreakers?.some((ib: UserIcebreaker) => ib.prompt_id === p.id))
+                      .map((p: IcebreakerPrompt) => {
                         const isSelected = selectedPromptId === p.id;
                         return (
                           <Pressable
@@ -580,7 +596,8 @@ export default function ProfileScreen() {
                     placeholder="Write your answer..."
                     maxLength={1000}
                     multiline
-                    className="rounded-lg border border-ink/10 bg-cream/30 p-2.5 text-sm text-ink min-h-[60px] textAlignVertical-top"
+                    className="rounded-lg border border-ink/10 bg-cream/30 p-2.5 text-sm text-ink min-h-[60px]"
+                    style={{ textAlignVertical: 'top' }}
                   />
                 </View>
               ) : null}

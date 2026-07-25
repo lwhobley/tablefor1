@@ -1,14 +1,15 @@
 import { View, Text, FlatList, ActivityIndicator, Pressable, Image } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/lib/auth";
-import { useMyMatches } from "@/lib/queries";
+import { useMyMatches, type MatchWithDiners } from "@/lib/queries";
+import { isMysteryRevealed } from "@/lib/mystery";
 import { Screen } from "@/components/Screen";
 import { Button } from "@/components/Button";
 import { Ionicons } from "@expo/vector-icons";
 
-function MatchCard({ match }: { match: any }) {
+function MatchCard({ match }: { match: MatchWithDiners }) {
   const router = useRouter();
-  const dinerNames = match.diners.map((d: any) => d.name).join(" · ");
+  const dinerNames = match.diners.map((d) => d.name).join(" · ");
   const eventDate = new Date(match.event.event_date);
   const isPast = eventDate < new Date();
   const isRevealed = !!match.revealed_at;
@@ -22,10 +23,14 @@ function MatchCard({ match }: { match: any }) {
       <View className="flex-row items-start justify-between">
         <View className="flex-1">
           <Text className="font-semibold text-ink">
-            {match.event.restaurant?.name ?? "Restaurant TBA"}
+            {isMysteryRevealed(match.event)
+              ? match.event.restaurant?.name ?? "Restaurant TBA"
+              : "Mystery Dinner"}
           </Text>
           <Text className="text-xs text-ink/60">
-            {match.event.restaurant?.neighborhood ?? match.event.city}
+            {isMysteryRevealed(match.event)
+              ? match.event.restaurant?.neighborhood ?? match.event.city
+              : "Location revealed before dinner"}
           </Text>
         </View>
         <View className="rounded-full bg-sage/10 px-3 py-1">
@@ -54,7 +59,7 @@ function MatchCard({ match }: { match: any }) {
       {isRevealed ? (
         <View>
           <View className="flex-row gap-2 mb-2">
-            {match.diners.slice(0, 3).map((d: any, idx: number) => (
+            {match.diners.slice(0, 3).map((d) => (
               <View
                 key={d.id}
                 className="h-10 w-10 rounded-full bg-cream items-center justify-center border-2 border-white"

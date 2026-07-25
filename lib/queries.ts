@@ -1,6 +1,7 @@
-import React from "react";
+import { useEffect } from "react";
 import { FunctionsHttpError } from "@supabase/supabase-js";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Platform } from "react-native";
 import {
   supabase,
   type EventRow,
@@ -28,6 +29,7 @@ import {
 } from "./supabase";
 import { getChatPhotoSignedUrl } from "./uploadChatPhoto";
 import { getStoryPhotoSignedUrl } from "./uploadStory";
+import { startRevenueCatPurchase } from "./revenuecat";
 
 export function useProfile(userId: string | undefined) {
   return useQuery({
@@ -95,7 +97,7 @@ export function useUpcomingEvents(city: string | null | undefined) {
 }
 
 export type EventDetail = EventWithRestaurant & {
-  restaurant: Restaurant;
+  restaurant: Restaurant | null;
   confirmed_covers: number;
 };
 
@@ -143,7 +145,7 @@ export function useEventDetails(eventId: string | undefined) {
 }
 
 export type UserBooking = Booking & {
-  event: EventWithRestaurant;
+  event: EventWithRestaurant | null;
 };
 
 export function useUserBookings(userId: string | undefined) {
@@ -219,13 +221,19 @@ export function useCreateBooking(userId: string | undefined) {
     onSuccess: async (booking) => {
       qc.invalidateQueries({ queryKey: ["bookings", userId] });
       // Clear any waitlist entry now that the user has a booking again.
-      const { error } = await supabase
-        .from("event_waitlist")
-        .delete()
-        .eq("event_id", booking.event_id)
-        .eq("user_id", userId!);
-      if (error) {
-        console.warn("[bookings] Could not clear waitlist entry", error);
+      // This cleanup should never block the happy path: the booking is real
+      // once the insert succeeds, even if the waitlist row is already gone.
+      try {
+        const { error } = await supabase
+          .from("event_waitlist")
+          .delete()
+          .eq("event_id", booking.event_id)
+          .eq("user_id", userId!);
+        if (error) {
+          console.warn("[bookings] Could not clear waitlist entry", error);
+        }
+      } catch (err) {
+        console.warn("[bookings] Could not clear waitlist entry", err);
       }
       qc.invalidateQueries({ queryKey: ["waitlist", booking.event_id, userId] });
     },
@@ -329,7 +337,7 @@ export function useMatchMessages(matchId: string | undefined) {
 export function useSubscribeToMessages(matchId: string | undefined) {
   const qc = useQueryClient();
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!matchId) return;
 
     const channel1 = supabase
@@ -917,7 +925,7 @@ export function useEventInvite(eventId: string | undefined, userId: string | und
 
 export function useExpansionCities(userId: string | undefined) {
   return useQuery({
-    queryKey: ["expansion-cities", userId],
+    queryKey: ["expansion-cities"],
     queryFn: async () => {
       // Aggregate RPC rather than pulling the whole city_votes table client
       // side — RLS now scopes city_votes reads to each user's own rows, so
@@ -1077,13 +1085,25 @@ export function useMyStoryForEvent(eventId: string | undefined, userId: string |
   });
 }
 
-// Starts a real Stripe subscription checkout instead of instantly granting
-// premium client-side. Returns the hosted checkout URL to open; premium is
-// only actually granted once stripe-webhook sees the subscription complete.
+// On iOS, starts a RevenueCat purchase flow and syncs the entitlement back
+// into Supabase. Everywhere else, falls back to the existing hosted Stripe
+// checkout flow for Premium.
 export function useSubscribePremium(userId: string | undefined) {
+  const qc = useQueryClient();
   return useMutation({
     mutationFn: async () => {
       if (!userId) throw new Error("Not signed in");
+      if (Platform.OS === "ios") {
+        await startRevenueCatPurchase(userId);
+        const { error: syncError } = await supabase.functions.invoke(
+          "sync-revenuecat-premium",
+        );
+        if (syncError) {
+          console.warn("[premium] RevenueCat sync failed", syncError);
+        }
+        qc.invalidateQueries({ queryKey: ["profile", userId] });
+        return null;
+      }
       const { data, error } = await supabase.functions.invoke(
         "create-premium-checkout-session",
       );
@@ -1575,6 +1595,8 @@ export function useMutualSparks(userId: string | undefined) {
   });
 }
 
+export type RestaurantListItem = Pick<Restaurant, 'id' | 'name' | 'neighborhood' | 'city' | 'cuisine'>;
+
 export function useRestaurants(city: string | null | undefined) {
   return useQuery({
     queryKey: ["restaurants", city ?? "_all"],
@@ -1588,7 +1610,7 @@ export function useRestaurants(city: string | null | undefined) {
       }
       const { data, error } = await query;
       if (error) throw error;
-      return data as Restaurant[];
+      return data as RestaurantListItem[];
     }
   });
 }
@@ -1844,8 +1866,4 @@ export function useSubmitConciergeRequest(userId: string | undefined) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["concierge-requests", userId] }),
   });
 }
-
-
-
-
 

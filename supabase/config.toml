@@ -423,10 +423,44 @@ enabled = true
 [functions.auth-send-email]
 enabled = true
 verify_jwt = false
-import_map = "./functions/auth-send-email/deno.json"
 # Uncomment to specify a custom file path to the entrypoint.
 # Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
 entrypoint = "./functions/auth-send-email/index.ts"
+
+# These endpoints authenticate with provider signatures or the shared admin
+# secret instead of a Supabase user JWT.
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.revenuecat-webhook]
+verify_jwt = false
+
+[functions.approve-availability]
+verify_jwt = false
+
+[functions.resy-sniper]
+verify_jwt = false
+
+[functions.reveal-match]
+verify_jwt = false
+
+[functions.run-dinner-roulette]
+verify_jwt = false
+
+[functions.run-matching]
+verify_jwt = false
+
+[functions.send-booking-confirmation]
+verify_jwt = false
+
+[functions.send-feedback-request]
+verify_jwt = false
+
+[functions.send-match-revealed]
+verify_jwt = false
+
+[functions.settle-payout]
+verify_jwt = false
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/auth-send-email/*.html" ]

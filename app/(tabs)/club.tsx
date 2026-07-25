@@ -3,6 +3,7 @@ import {
   Alert,
   ImageBackground,
   Linking,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -122,6 +123,8 @@ export default function ClubScreen() {
 
   useEffect(() => {
     if (!profile) return;
+    // This is editable form state, initialized when the profile query resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInterests(profile.interests ?? []);
     setVibes(profile.preferred_vibes ?? []);
     setAvailability(profile.availability ?? []);
@@ -148,8 +151,19 @@ export default function ClubScreen() {
 
   const joinPremium = async () => {
     try {
-      const url = await subscribePremium.mutateAsync();
-      await Linking.openURL(url);
+      const result = await subscribePremium.mutateAsync();
+      if (!result) {
+        Alert.alert(
+          "Premium request sent",
+          "Your subscription is being synced. Give it a moment, then refresh if needed.",
+        );
+        return;
+      }
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        window.location.assign(result);
+        return;
+      }
+      await Linking.openURL(result);
     } catch (error) {
       Alert.alert("Couldn't open Premium", (error as Error).message);
     }
@@ -270,7 +284,12 @@ export default function ClubScreen() {
           {profile?.is_premium ? (
             <Button label="Ask the dining concierge" variant="secondary" onPress={() => router.push("/concierge")} />
           ) : (
-            <Button label="Join Premium" variant="secondary" loading={subscribePremium.isPending} onPress={joinPremium} />
+            <Button
+              label={Platform.OS === "ios" ? "Subscribe with Apple" : "Join Premium"}
+              variant="secondary"
+              loading={subscribePremium.isPending}
+              onPress={joinPremium}
+            />
           )}
         </View>
       </ScrollView>

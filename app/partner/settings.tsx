@@ -26,6 +26,8 @@ export default function PartnerSettings() {
 
   useEffect(() => {
     if (!restaurant) return;
+    // This is editable form state, initialized when the restaurant query resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setName(restaurant.name);
     setNeighborhood(restaurant.neighborhood);
     setCity(restaurant.city);

@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from "react";
-import { View, Text, Image, Animated, Pressable, useWindowDimensions } from "react-native";
+import { useEffect, useState } from "react";
+import { View, Text, Image, Animated, Pressable, useWindowDimensions, StyleSheet } from "react-native";
+import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
 import { Button } from "@/components/Button";
 
@@ -8,8 +9,8 @@ export default function IntroScreen() {
   const { width } = useWindowDimensions();
   const [step, setStep] = useState(0); // 0: pasta, 1: sushi, 2: meeting, 3: title & login
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const titleFadeAnim = useRef(new Animated.Value(0)).current;
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [titleFadeAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     // Reset fadeAnim on each step change (except step 3)
@@ -85,49 +86,47 @@ export default function IntroScreen() {
   const logoWidth = Math.min(width - 48, 360);
   const logoHeight = logoWidth * (1012 / 1844);
 
-  // Deliberately NOT wrapped in <Screen>: its cream background and content
-  // insets (px-4 pt-3 pb-8) frame the artwork in a visible box. The intro
-  // is a full-bleed cinematic, edge to edge.
   return (
-    <View className="flex-1 justify-center items-center bg-stone-950 w-full h-full">
-        {step < 3 ? (
-          <Pressable onPress={handleSkip} className="flex-1 w-full h-full justify-center items-center">
-            <Animated.View style={{ opacity: fadeAnim, width: "100%", height: "100%", position: "absolute" }}>
-              <Image
-                source={images[step]}
-                style={{ width: "100%", height: "100%", resizeMode: "cover" }}
-              />
-            </Animated.View>
-            
-            {/* Skip button overlay */}
-            <Pressable
-              onPress={handleSkip}
-              className="absolute top-12 right-6 bg-black/55 rounded-full px-4.5 py-2 border border-white/10 active:bg-black/80"
-            >
-              <Text className="text-white/80 text-xs font-semibold uppercase tracking-wider">Skip</Text>
-            </Pressable>
-          </Pressable>
-        ) : (
-          <Animated.View
-            style={{ opacity: titleFadeAnim, flex: 1, width: "100%", height: "100%" }}
-          >
-            <View className="flex-1 items-center justify-center px-6">
-              <Image
-                source={require("../assets/images/table_for_2_logo.png")}
-                style={{ width: logoWidth, height: logoHeight, resizeMode: "contain" }}
-              />
-            </View>
-
-            <View className="absolute bottom-0 left-0 right-0 items-center pb-16 px-8">
-              <View className="w-full gap-3">
-                <Button
-                  label="Get Started"
-                  onPress={() => router.replace("/(auth)/login")}
-                />
-              </View>
-            </View>
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: "#0A0A0A" }]}>
+      <StatusBar style="light" />
+      {step < 3 ? (
+        <Pressable onPress={handleSkip} style={StyleSheet.absoluteFill}>
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: fadeAnim }]}>
+            <Image
+              source={images[step]}
+              style={[StyleSheet.absoluteFill, { width: "100%", height: "100%", resizeMode: "cover" }]}
+            />
           </Animated.View>
-        )}
-      </View>
+
+          {/* Skip button overlay */}
+          <Pressable
+            onPress={handleSkip}
+            className="absolute top-12 right-6 z-50 bg-black/55 rounded-full px-4.5 py-2 border border-white/10 active:bg-black/80"
+          >
+            <Text className="text-white/80 text-xs font-semibold uppercase tracking-wider">Skip</Text>
+          </Pressable>
+        </Pressable>
+      ) : (
+        <Animated.View
+          style={[StyleSheet.absoluteFill, { opacity: titleFadeAnim }]}
+        >
+          <View className="flex-1 items-center justify-center px-6">
+            <Image
+              source={require("../assets/images/table_for_2_logo.png")}
+              style={{ width: logoWidth, height: logoHeight, resizeMode: "contain" }}
+            />
+          </View>
+
+          <View className="absolute bottom-0 left-0 right-0 items-center pb-16 px-8">
+            <View className="w-full gap-3">
+              <Button
+                label="Get Started"
+                onPress={() => router.replace("/(auth)/login")}
+              />
+            </View>
+          </View>
+        </Animated.View>
+      )}
+    </View>
   );
 }

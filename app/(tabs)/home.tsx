@@ -35,6 +35,7 @@ import {
 import { isMysteryRevealed, priceTier } from "../../lib/mystery";
 import { getEventMatchFit } from "../../lib/matchValue";
 import type { Profile } from "../../lib/supabase";
+import { useNow } from "../../lib/useNow";
 
 function formatLabel(format: string) {
   return format.replaceAll("_", " ");
@@ -44,17 +45,19 @@ function EventCard({
   event,
   profile,
   artworkIndex,
+  now,
 }: {
   event: EventWithRestaurant;
   profile: Profile | undefined;
   artworkIndex: number;
+  now: number;
 }) {
   const router = useRouter();
   const isPremium = !!profile?.is_premium;
   const fit = getEventMatchFit(profile, event);
   const publishedTime = event.published_at ? new Date(event.published_at).getTime() : 0;
   const earlyAccessLimit = publishedTime + (event.early_access_hours || 24) * 60 * 60 * 1000;
-  const isEarlyAccess = Date.now() < earlyAccessLimit;
+  const isEarlyAccess = now < earlyAccessLimit;
   const isLocked = isEarlyAccess && !isPremium;
   const revealed = isMysteryRevealed(event);
   const date = new Date(event.event_date);
@@ -210,13 +213,15 @@ function RouletteBanner({
   profile,
   userId,
   events,
+  now,
 }: {
   profile: Profile | undefined;
   userId: string | undefined;
   events: EventWithRestaurant[];
+  now: number;
 }) {
   const router = useRouter();
-  const dateString = new Date().toISOString().split("T")[0];
+  const dateString = new Date(now).toISOString().split("T")[0];
   const { data: optIn } = useRouletteOptInStatus(userId, dateString);
   const optInRoulette = useOptInRoulette(userId);
   const optOutRoulette = useOptOutRoulette(userId);
@@ -224,10 +229,10 @@ function RouletteBanner({
 
   if (!profile) return null;
   const isPremium = !!profile.is_premium;
-  const optionWindowEnd = Date.now() + 14 * 24 * 60 * 60 * 1000;
+  const optionWindowEnd = now + 14 * 24 * 60 * 60 * 1000;
   const options = events.filter((event) => {
     const eventTime = new Date(event.event_date).getTime();
-    return eventTime >= Date.now() && eventTime <= optionWindowEnd && (event.spots_left ?? 0) > 0;
+    return eventTime >= now && eventTime <= optionWindowEnd && (event.spots_left ?? 0) > 0;
   });
 
   const isActiveOptIn = optIn?.status === "pending";
@@ -263,12 +268,12 @@ function RouletteBanner({
             await optOutRoulette.mutateAsync({ optInId: optIn.id, date: dateString });
           }
           await optInRoulette.mutateAsync({
-          city: profile.travel_city || profile.city,
-          date: dateString,
-          preferredEventId: options[0]?.id,
-        });
-        Alert.alert("You're In", "We'll search upcoming open seats and prioritize the table shown in Roulette.");
-      }
+            city: profile.travel_city || profile.city,
+            date: dateString,
+            preferredEventId: options[0]?.id,
+          });
+          Alert.alert("You're In", "We'll search upcoming open seats and prioritize the table shown in Roulette.");
+        }
     } catch (err) {
       Alert.alert("Error", (err as Error).message);
     }
@@ -429,6 +434,7 @@ function StoriesCTA() {
 }
 
 export default function Home() {
+  const now = useNow();
   const { session } = useAuth();
   const { data: profile } = useProfile(session?.user.id);
   const { data: streak } = useStreak(session?.user.id);
@@ -493,7 +499,7 @@ export default function Home() {
           data={events ?? []}
           keyExtractor={(event) => event.id}
           renderItem={({ item, index }) => (
-            <EventCard event={item} profile={profile} artworkIndex={index} />
+            <EventCard event={item} profile={profile} artworkIndex={index} now={now} />
           )}
           ItemSeparatorComponent={() => <View className="h-4" />}
           ListHeaderComponent={
@@ -501,7 +507,7 @@ export default function Home() {
               {(waitlistNotifications ?? []).map((entry: WaitlistNotification) => (
                 <WaitlistBanner key={entry.id} entry={entry} />
               ))}
-              <RouletteBanner profile={profile} userId={session?.user.id} events={events ?? []} />
+              <RouletteBanner profile={profile} userId={session?.user.id} events={events ?? []} now={now} />
               <StoriesCTA />
               <View className="flex-row items-center justify-between pt-2">
                 <Text className="text-xs font-bold uppercase text-muted">Available experiences</Text>

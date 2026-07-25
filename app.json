@@ -3,16 +3,11 @@
     "name": "Table for 2",
     "slug": "table-for-2",
     "scheme": "tablefor2",
-    "version": "0.1.0",
+    "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
-    "backgroundColor": "#FFF7ED",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "cover",
-      "backgroundColor": "#FFF7ED"
-    },
+    "backgroundColor": "#FAF3E3",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tablefor2.app",
@@ -21,7 +16,8 @@
       },
       "infoPlist": {
         "NSCameraUsageDescription": "Allow Table for 2 to use your camera so you can check in with a selfie at the table.",
-        "NSPhotoLibraryUsageDescription": "Allow Table for 2 to access your photos so you can upload a profile picture and share dinner photos."
+        "NSPhotoLibraryUsageDescription": "Allow Table for 2 to access your photos so you can upload a profile picture and share dinner photos.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -42,6 +38,14 @@
         {
           "photosPermission": "Allow Table for 2 to access your photos so you can upload a profile picture.",
           "cameraPermission": "Allow Table for 2 to use your camera so you can check in with a selfie at the table."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "cover",
+          "backgroundColor": "#FAF3E3"
         }
       ],
       "expo-font"

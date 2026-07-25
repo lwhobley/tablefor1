@@ -24,7 +24,15 @@ REVOKE EXECUTE ON FUNCTION public.handle_booking_confirmed_invite() FROM PUBLIC,
 REVOKE EXECUTE ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.notify_waitlist_on_cancel() FROM PUBLIC, anon, authenticated;
 REVOKE EXECUTE ON FUNCTION public.validate_booking_plus_one_invite() FROM PUBLIC, anon, authenticated;
-REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM PUBLIC, anon, authenticated;
+DO $$
+BEGIN
+  -- This helper exists on some hosted projects but not in a fresh local
+  -- database. Keep the hardening migration replayable in both environments.
+  IF to_regprocedure('public.rls_auto_enable()') IS NOT NULL THEN
+    EXECUTE 'REVOKE EXECUTE ON FUNCTION public.rls_auto_enable() FROM PUBLIC, anon, authenticated';
+  END IF;
+END
+$$;
 REVOKE EXECUTE ON FUNCTION public.safe_profile_json(public.users) FROM PUBLIC, anon, authenticated;
 
 ALTER FUNCTION public.claim_plus_one_invite(text) SET search_path = public;

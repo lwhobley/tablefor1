@@ -96,7 +96,7 @@ export type EventRow = {
   description: string | null;
   is_mystery: boolean;
   reveal_hours_before: number;
-  published_at: string;
+  published_at: string | null;
   early_access_hours: number;
   theme: string | null;
   vibe_tags: string[];

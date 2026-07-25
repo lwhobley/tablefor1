@@ -2,18 +2,21 @@ import { ActivityIndicator, Pressable, Text } from "react-native";
 
 type Variant = "primary" | "secondary" | "ghost";
 
-const variants: Record<Variant, { base: string; text: string }> = {
+const variants: Record<Variant, { base: string; text: string; spinner: string }> = {
   primary: {
     base: "bg-rust active:bg-rust/80 disabled:bg-muted/40",
     text: "text-white",
+    spinner: "#FFFFFF",
   },
   secondary: {
     base: "bg-clay/20 active:bg-clay/30 disabled:bg-muted/20",
     text: "text-rust",
+    spinner: "#B5462D",
   },
   ghost: {
     base: "bg-transparent active:bg-ink/5",
     text: "text-ink",
+    spinner: "#17201C",
   },
 };
 
@@ -38,7 +41,7 @@ export function Button({
       className={`h-12 items-center justify-center rounded-lg px-5 ${v.base}`}
     >
       {loading ? (
-        <ActivityIndicator color="white" />
+        <ActivityIndicator color={v.spinner} />
       ) : (
         <Text className={`text-base font-semibold ${v.text}`}>{label}</Text>
       )}

@@ -14,13 +14,14 @@
     "preview": {
       "distribution": "internal",
       "ios": {
+        "image": "latest",
         "resourceClass": "m-medium"
       }
     },
     "production": {
       "autoIncrement": true,
       "ios": {
-        "image": "macos-tahoe-26.4-xcode-26.4",
+        "image": "latest",
         "resourceClass": "m-medium"
       }
     }

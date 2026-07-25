@@ -37,8 +37,10 @@ import { ProfileModal } from "@/components/ProfileModal";
 import type { Profile } from "@/lib/supabase";
 import { DinnerPolls } from "@/components/DinnerPolls";
 import { getGroupMatchReasons } from "@/lib/matchValue";
+import { useNow } from "@/lib/useNow";
 
 export default function MatchDetail() {
+  const now = useNow();
   const { matchId, recipientId } = useLocalSearchParams<{
     matchId: string;
     recipientId?: string;
@@ -147,7 +149,7 @@ export default function MatchDetail() {
   }
 
   const eventDate = new Date(match.event.event_date);
-  const isPast = eventDate < new Date();
+  const isPast = eventDate.getTime() < now;
   const isRevealed = !!match.revealed_at;
   const selectedRecipient = match.diners.find(
     (diner: { id: string }) => diner.id === recipientId,
@@ -168,8 +170,8 @@ export default function MatchDetail() {
   });
   const restaurantRevealed = isMysteryRevealed(match.event);
   const checkinWindowOpen =
-    Date.now() >= eventDate.getTime() - 30 * 60 * 1000 &&
-    Date.now() <= eventDate.getTime() + 3 * 3600 * 1000;
+    now >= eventDate.getTime() - 30 * 60 * 1000 &&
+    now <= eventDate.getTime() + 3 * 3600 * 1000;
 
   const handleSendMessage = () => {
     if (!text.trim()) return;

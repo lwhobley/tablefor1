@@ -3,7 +3,7 @@ import { Alert, Modal, View, Text, Image, ScrollView, Pressable, ActivityIndicat
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useAuth } from "../lib/auth";
-import { useBadges, useBlockedUsers, useProfileVerification, useToggleBlockedUser, useUserIcebreakers } from "../lib/queries";
+import { useBadges, useBlockedUsers, useProfileVerification, useToggleBlockedUser, useUserIcebreakers, type UserIcebreaker } from "../lib/queries";
 import { BadgeList } from "./BadgeList";
 import type { Profile } from "../lib/supabase";
 
@@ -154,7 +154,7 @@ export function ProfileModal({ visible, onClose, diner }: ProfileModalProps) {
                 <ActivityIndicator size="small" color="#C2410C" />
               ) : userIcebreakers && userIcebreakers.length > 0 ? (
                 <View className="gap-4">
-                  {userIcebreakers.map((ib: any) => (
+                  {userIcebreakers.map((ib: UserIcebreaker) => (
                     <View key={ib.id} className="rounded-lg border border-rust/10 bg-rust/5 p-4 shadow-sm">
                       <Text className="text-xs font-bold text-rust uppercase tracking-wider mb-1">
                         {ib.prompt.prompt_text}

@@ -30,4 +30,13 @@ describe("getEventMatchFit", () => {
     const fit = getEventMatchFit({ ...profile, travel_city: "Austin" }, { ...event, city: "Austin" });
     expect(fit.reasons[0]).toBe("Fits your Austin travel mode");
   });
+
+  it("returns a sub-cap score when few signals match", () => {
+    const fit = getEventMatchFit(
+      { ...profile, food_prefs: ["Korean"], preferred_vibes: ["lively"], is_premium: false } as any,
+      { ...event, is_signature: false },
+    );
+    expect(fit.score).toBeLessThan(98);
+    expect(fit.score).toBeGreaterThanOrEqual(45);
+  });
 });

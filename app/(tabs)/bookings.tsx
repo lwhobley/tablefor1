@@ -30,8 +30,22 @@ function BookingCard({
   const userId = session?.user?.id;
   const { data: myStory } = useMyStoryForEvent(booking.event_id, userId);
   const { data: matchId } = useMyMatchForEvent(booking.event_id, userId);
+  const event = booking.event;
 
-  const eventDate = new Date(booking.event.event_date);
+  if (!event) {
+    return (
+      <View className="gap-3 rounded-xl border border-ink/10 bg-white p-4">
+        <View className="gap-1">
+          <Text className="font-semibold text-ink">Booking unavailable</Text>
+          <Text className="text-sm text-ink/60">
+            This dinner no longer has full event details attached.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
+  const eventDate = new Date(event.event_date);
   const isPast = eventDate < new Date();
   const isWithin48h =
     !isPast &&
@@ -56,7 +70,7 @@ function BookingCard({
 
   const canCancel =
     booking.status === "pending" && !isPast && !isWithin48h;
-  const revealed = isMysteryRevealed(booking.event);
+  const revealed = isMysteryRevealed(event);
 
   return (
     <Pressable
@@ -68,16 +82,16 @@ function BookingCard({
         <View className="flex-1 gap-1">
           <Text className="font-semibold text-ink">
             {revealed
-              ? booking.event.restaurant?.name ?? "Restaurant TBA"
-              : `Mystery Dinner ${priceTier(booking.event.price_cents)}`}
+              ? event.restaurant?.name ?? "Restaurant TBA"
+              : `Mystery Dinner ${priceTier(event.price_cents)}`}
           </Text>
           <Text className="text-xs text-ink/60">
             {revealed
-              ? booking.event.restaurant?.neighborhood ?? booking.event.city
+              ? event.restaurant?.neighborhood ?? event.city
               : "Revealed closer to the date"}
           </Text>
-          {booking.event.is_mystery && !revealed && (
-            <MysteryBadge event={booking.event} />
+          {event.is_mystery && !revealed && (
+            <MysteryBadge event={event} />
           )}
         </View>
         <Text className={`text-xs font-medium capitalize ${statusColor}`}>
@@ -96,7 +110,7 @@ function BookingCard({
       {/* Group and price */}
       <View className="flex-row justify-between">
         <Text className="text-sm text-ink/60">
-          Table of {booking.event.group_size}
+          Table of {event.group_size}
         </Text>
         <Text className="text-sm text-ink/60">
           ${(booking.amount_cents / 100).toFixed(2)}
@@ -194,6 +208,7 @@ export default function Bookings() {
 
   const now = new Date();
   const filtered = (bookings ?? []).filter((b: UserBooking) => {
+    if (!b.event) return filter === "upcoming";
     const eventDate = new Date(b.event.event_date);
     const isPast = eventDate < now;
     return filter === "upcoming" ? !isPast : isPast;
