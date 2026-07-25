@@ -23,6 +23,8 @@ export default function AuthCallback() {
       searchParams.get("error") ??
       hashParams.get("error");
     if (urlError) {
+      // URL parsing is the external system this effect synchronizes with.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(decodeURIComponent(urlError));
       return;
     }

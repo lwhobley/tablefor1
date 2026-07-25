@@ -107,6 +107,8 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     if (!profile) return;
+    // This is editable form state, initialized when the profile query resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setName(profile.name);
     setPhoto(profile.photo_url);
     setCity([profile.city]);

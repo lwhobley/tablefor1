@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { View, Text, Image, Animated, Pressable, useWindowDimensions, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { useRouter } from "expo-router";
@@ -9,8 +9,8 @@ export default function IntroScreen() {
   const { width } = useWindowDimensions();
   const [step, setStep] = useState(0); // 0: pasta, 1: sushi, 2: meeting, 3: title & login
 
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const titleFadeAnim = useRef(new Animated.Value(0)).current;
+  const [fadeAnim] = useState(() => new Animated.Value(0));
+  const [titleFadeAnim] = useState(() => new Animated.Value(0));
 
   useEffect(() => {
     // Reset fadeAnim on each step change (except step 3)
@@ -87,14 +87,14 @@ export default function IntroScreen() {
   const logoHeight = logoWidth * (1012 / 1844);
 
   return (
-    <View style={[StyleSheet.absoluteFillObject, { backgroundColor: "#0A0A0A" }]}>
-      <StatusBar style="light" translucent />
+    <View style={[StyleSheet.absoluteFill, { backgroundColor: "#0A0A0A" }]}>
+      <StatusBar style="light" />
       {step < 3 ? (
-        <Pressable onPress={handleSkip} style={StyleSheet.absoluteFillObject}>
-          <Animated.View style={[StyleSheet.absoluteFillObject, { opacity: fadeAnim }]}>
+        <Pressable onPress={handleSkip} style={StyleSheet.absoluteFill}>
+          <Animated.View style={[StyleSheet.absoluteFill, { opacity: fadeAnim }]}>
             <Image
               source={images[step]}
-              style={[StyleSheet.absoluteFillObject, { width: "100%", height: "100%", resizeMode: "cover" }]}
+              style={[StyleSheet.absoluteFill, { width: "100%", height: "100%", resizeMode: "cover" }]}
             />
           </Animated.View>
           
@@ -108,7 +108,7 @@ export default function IntroScreen() {
         </Pressable>
       ) : (
         <Animated.View
-          style={[StyleSheet.absoluteFillObject, { opacity: titleFadeAnim }]}
+          style={[StyleSheet.absoluteFill, { opacity: titleFadeAnim }]}
         >
           <View className="flex-1 items-center justify-center px-6">
             <Image

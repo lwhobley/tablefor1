@@ -19,6 +19,8 @@ export default function Checkout() {
 
   useEffect(() => {
     if (!bookingId || !session?.user?.id) {
+      // Session and route parameters are external inputs resolved after mount.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError("Invalid session");
       setLoading(false);
       return;

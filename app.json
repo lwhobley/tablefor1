@@ -8,11 +8,6 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#FAF3E3",
-    "splash": {
-      "image": "./assets/splash.png",
-      "resizeMode": "cover",
-      "backgroundColor": "#FAF3E3"
-    },
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.tablefor2.app",
@@ -43,6 +38,14 @@
         {
           "photosPermission": "Allow Table for 2 to access your photos so you can upload a profile picture.",
           "cameraPermission": "Allow Table for 2 to use your camera so you can check in with a selfie at the table."
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash.png",
+          "resizeMode": "cover",
+          "backgroundColor": "#FAF3E3"
         }
       ],
       "expo-font"

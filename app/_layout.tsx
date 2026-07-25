@@ -16,7 +16,7 @@ const queryClient = new QueryClient({
 
 function AuthGate() {
   const { session, loading } = useAuth();
-  const segments = useSegments();
+  const segments = useSegments() as unknown as string[];
   const router = useRouter();
   useRevenueCatIdentity(session?.user.id);
 

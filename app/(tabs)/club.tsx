@@ -123,6 +123,8 @@ export default function ClubScreen() {
 
   useEffect(() => {
     if (!profile) return;
+    // This is editable form state, initialized when the profile query resolves.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setInterests(profile.interests ?? []);
     setVibes(profile.preferred_vibes ?? []);
     setAvailability(profile.availability ?? []);
