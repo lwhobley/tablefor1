@@ -1,7 +1,7 @@
+import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Image,
   ImageBackground,
   Pressable,
@@ -11,13 +11,12 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Screen } from "../../components/Screen";
+import { DiningSwipeDeck } from "../../components/DiningSwipeDeck";
 import { StreakBadge } from "../../components/StreakBadge";
 import { MysteryBadge } from "../../components/MysteryBadge";
 import {
   getEventArtwork,
-  homeHeroArtwork,
   rouletteArtwork,
-  storyArtwork,
 } from "../../components/event-artwork";
 import { useAuth } from "../../lib/auth";
 import {
@@ -46,11 +45,13 @@ function EventCard({
   profile,
   artworkIndex,
   now,
+  compact = false,
 }: {
   event: EventWithRestaurant;
   profile: Profile | undefined;
   artworkIndex: number;
   now: number;
+  compact?: boolean;
 }) {
   const router = useRouter();
   const isPremium = !!profile?.is_premium;
@@ -85,7 +86,7 @@ function EventCard({
         source={getEventArtwork(event, artworkIndex)}
         resizeMode="cover"
         imageStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
-        style={{ height: 184 }}
+        style={{ height: compact ? 138 : 184 }}
       >
         <View className="flex-1 justify-between p-3">
           <View className="flex-row items-start justify-between gap-2">
@@ -125,7 +126,7 @@ function EventCard({
         </View>
       </ImageBackground>
 
-      <View className="gap-3 p-4">
+      <View className={compact ? "gap-2 p-3" : "gap-3 p-4"}>
         <View className="flex-row items-start justify-between gap-4">
           <View className="flex-1 gap-1">
             <Text className="text-xs font-bold uppercase text-rust">
@@ -408,116 +409,95 @@ function RouletteBanner({
   );
 }
 
-function StoriesCTA() {
-  const router = useRouter();
-  return (
-    <Pressable onPress={() => router.push("/stories")} className="overflow-hidden rounded-lg active:opacity-90">
-      <ImageBackground
-        source={storyArtwork}
-        resizeMode="cover"
-        imageStyle={{ width: "100%", height: "100%", objectFit: "cover" }}
-        style={{ height: 128 }}
-      >
-        <View className="flex-1 flex-row items-end justify-between bg-black/50 p-4">
-          <View className="flex-1 gap-1 pr-4">
-            <Text className="text-xs font-bold uppercase text-white/75">From the community</Text>
-            <Text className="font-serif text-xl text-white">Dinner Stories</Text>
-            <Text className="text-xs text-white/75">See what happens after strangers share a table.</Text>
-          </View>
-          <View className="h-9 w-9 items-center justify-center rounded-full bg-white">
-            <Ionicons name="arrow-forward" size={18} color="#17201C" />
-          </View>
-        </View>
-      </ImageBackground>
-    </Pressable>
-  );
-}
-
 export default function Home() {
+  const router = useRouter();
+  const [showRoulette, setShowRoulette] = useState(false);
   const now = useNow();
   const { session } = useAuth();
   const { data: profile } = useProfile(session?.user.id);
   const { data: streak } = useStreak(session?.user.id);
   const activeCity = profile?.travel_city || profile?.city;
-  const { data: events, isLoading } = useUpcomingEvents(activeCity);
+  const { data: events, isLoading, isRefetching, refetch } = useUpcomingEvents(activeCity);
   const { data: waitlistNotifications } = useMyWaitlistNotifications(session?.user.id);
 
   return (
     <Screen scroll={false}>
-      <View className="pb-5">
-        <ImageBackground
-          source={homeHeroArtwork}
-          resizeMode="cover"
-          imageStyle={{ borderRadius: 8, width: "100%", height: "100%", objectFit: "cover" }}
-          style={{ height: 220 }}
-          className="overflow-hidden rounded-lg"
-        >
-          <View className="flex-1 justify-between rounded-lg bg-black/45 p-4">
-            <View className="flex-row items-center justify-between gap-3">
-              <View className="flex-row items-center gap-3">
-                <View className="h-11 w-11 items-center justify-center overflow-hidden rounded-full border border-white/30 bg-white/20">
-                  {profile?.photo_url ? (
-                    <Image source={{ uri: profile.photo_url }} className="h-11 w-11" />
-                  ) : (
-                    <Ionicons name="person" size={20} color="#FFFFFF" />
-                  )}
-                </View>
-                <View>
-                  <Text className="text-xs font-semibold uppercase text-white/70">Welcome back</Text>
-                  <Text className="text-base font-semibold text-white">{profile?.name ?? "Friend"}</Text>
-                </View>
-              </View>
-              <StreakBadge count={streak?.streak_count ?? 0} />
-            </View>
-
-            <View className="gap-2">
-              {activeCity && (
-                <View className="self-start flex-row items-center gap-1 rounded-full bg-white/90 px-2.5 py-1">
-                  <Ionicons
-                    name={profile?.travel_city ? "airplane" : "location"}
-                    size={11}
-                    color="#1D5A4A"
-                  />
-                  <Text className="text-xs font-semibold text-forest">{activeCity}</Text>
-                </View>
-              )}
-              <Text className="font-serif text-3xl text-white">Upcoming tables</Text>
-              <Text className="max-w-md text-sm leading-5 text-white/80">
-                Curated places, thoughtful matches, one shared table.
-              </Text>
+      <View className="flex-row items-center justify-between gap-3 pb-3">
+        <View className="min-w-0 flex-1 flex-row items-center gap-3">
+          <View className="h-11 w-11 items-center justify-center overflow-hidden rounded-full bg-teal/10">
+            {profile?.photo_url ? (
+              <Image source={{ uri: profile.photo_url }} className="h-11 w-11" />
+            ) : (
+              <Ionicons name="person" size={20} color="#0D5C63" />
+            )}
+          </View>
+          <View className="min-w-0 flex-1">
+            <Text className="font-serif text-xl text-ink" numberOfLines={1}>
+              {profile?.name ?? "Upcoming tables"}
+            </Text>
+            <View className="flex-row items-center gap-1">
+              <Ionicons name={profile?.travel_city ? "airplane" : "location"} size={12} color="#68736D" />
+              <Text className="text-xs text-muted" numberOfLines={1}>{activeCity ?? "Your city"}</Text>
             </View>
           </View>
-        </ImageBackground>
+        </View>
+        <StreakBadge count={streak?.streak_count ?? 0} />
+        <Pressable
+          accessibilityLabel="Dinner Roulette"
+          onPress={() => setShowRoulette((visible) => !visible)}
+          className={`h-10 w-10 items-center justify-center rounded-full ${showRoulette ? "bg-teal" : "bg-white"}`}
+        >
+          <Ionicons name="shuffle" size={18} color={showRoulette ? "#FFFFFF" : "#0D5C63"} />
+        </Pressable>
+        <Pressable
+          accessibilityLabel="Dinner Stories"
+          onPress={() => router.push("/stories")}
+          className="h-10 w-10 items-center justify-center rounded-full bg-white"
+        >
+          <Ionicons name="book-outline" size={18} color="#0D5C63" />
+        </Pressable>
       </View>
 
-      {isLoading ? (
+      {(waitlistNotifications ?? []).slice(0, 1).map((entry: WaitlistNotification) => (
+        <View key={entry.id} className="pb-3">
+          <WaitlistBanner entry={entry} />
+        </View>
+      ))}
+
+      {showRoulette ? (
+        <View className="flex-1 justify-center">
+          <RouletteBanner profile={profile} userId={session?.user.id} events={events ?? []} now={now} />
+        </View>
+      ) : isLoading ? (
         <View className="flex-1 items-center justify-center">
           <ActivityIndicator color="#1D5A4A" />
         </View>
+      ) : (events ?? []).length === 0 ? (
+        <View className="flex-1 items-center justify-center gap-4">
+          <EmptyState city={activeCity} />
+          <Pressable
+            onPress={() => refetch()}
+            disabled={isRefetching}
+            className="flex-row items-center gap-2 rounded-lg bg-teal px-5 py-3 active:opacity-80 disabled:opacity-50"
+          >
+            <Ionicons name="refresh" size={18} color="#FFFFFF" />
+            <Text className="font-bold text-white">{isRefetching ? "Pulling tables..." : "Pull more"}</Text>
+          </Pressable>
+        </View>
       ) : (
-        <FlatList
-          data={events ?? []}
-          keyExtractor={(event) => event.id}
-          renderItem={({ item, index }) => (
-            <EventCard event={item} profile={profile} artworkIndex={index} now={now} />
+        <DiningSwipeDeck
+          events={events ?? []}
+          pulling={isRefetching}
+          onPullMore={() => void refetch()}
+          renderCard={(event, index) => (
+            <EventCard
+              event={event}
+              profile={profile}
+              artworkIndex={Math.max(0, index)}
+              now={now}
+              compact
+            />
           )}
-          ItemSeparatorComponent={() => <View className="h-4" />}
-          ListHeaderComponent={
-            <View className="gap-3 pb-5">
-              {(waitlistNotifications ?? []).map((entry: WaitlistNotification) => (
-                <WaitlistBanner key={entry.id} entry={entry} />
-              ))}
-              <RouletteBanner profile={profile} userId={session?.user.id} events={events ?? []} now={now} />
-              <StoriesCTA />
-              <View className="flex-row items-center justify-between pt-2">
-                <Text className="text-xs font-bold uppercase text-muted">Available experiences</Text>
-                <Text className="text-xs text-muted">{events?.length ?? 0} tables</Text>
-              </View>
-            </View>
-          }
-          ListEmptyComponent={<EmptyState city={activeCity} />}
-          contentContainerStyle={{ paddingBottom: 24 }}
-          showsVerticalScrollIndicator={false}
         />
       )}
     </Screen>
