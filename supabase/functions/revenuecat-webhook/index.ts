@@ -71,6 +71,11 @@ Deno.serve(async (req) => {
 
   try {
     const expectedAuth = Deno.env.get("REVENUECAT_WEBHOOK_AUTHORIZATION");
+    const signingSecret = Deno.env.get("REVENUECAT_WEBHOOK_SIGNING_SECRET");
+    if (!expectedAuth && !signingSecret) {
+      console.error("RevenueCat webhook authentication is not configured");
+      return json({ error: "Webhook authentication is not configured" }, 503);
+    }
     if (expectedAuth) {
       const providedAuth = req.headers.get("Authorization") ?? "";
       if (!timingSafeEqual(providedAuth, expectedAuth)) {
@@ -79,7 +84,6 @@ Deno.serve(async (req) => {
     }
 
     const rawBody = await req.text();
-    const signingSecret = Deno.env.get("REVENUECAT_WEBHOOK_SIGNING_SECRET");
     if (signingSecret) {
       const signature = req.headers.get("X-RevenueCat-Webhook-Signature") ?? "";
       if (!signature || !(await verifySignature(rawBody, signature, signingSecret))) {

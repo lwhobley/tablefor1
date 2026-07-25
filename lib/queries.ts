@@ -145,7 +145,7 @@ export function useEventDetails(eventId: string | undefined) {
 }
 
 export type UserBooking = Booking & {
-  event: EventWithRestaurant;
+  event: EventWithRestaurant | null;
 };
 
 export function useUserBookings(userId: string | undefined) {
@@ -221,13 +221,19 @@ export function useCreateBooking(userId: string | undefined) {
     onSuccess: async (booking) => {
       qc.invalidateQueries({ queryKey: ["bookings", userId] });
       // Clear any waitlist entry now that the user has a booking again.
-      const { error } = await supabase
-        .from("event_waitlist")
-        .delete()
-        .eq("event_id", booking.event_id)
-        .eq("user_id", userId!);
-      if (error) {
-        console.warn("[bookings] Could not clear waitlist entry", error);
+      // This cleanup should never block the happy path: the booking is real
+      // once the insert succeeds, even if the waitlist row is already gone.
+      try {
+        const { error } = await supabase
+          .from("event_waitlist")
+          .delete()
+          .eq("event_id", booking.event_id)
+          .eq("user_id", userId!);
+        if (error) {
+          console.warn("[bookings] Could not clear waitlist entry", error);
+        }
+      } catch (err) {
+        console.warn("[bookings] Could not clear waitlist entry", err);
       }
       qc.invalidateQueries({ queryKey: ["waitlist", booking.event_id, userId] });
     },
@@ -1089,9 +1095,10 @@ export function useSubscribePremium(userId: string | undefined) {
       if (!userId) throw new Error("Not signed in");
       if (Platform.OS === "ios") {
         await startRevenueCatPurchase(userId);
-        try {
-          await supabase.functions.invoke("sync-revenuecat-premium");
-        } catch (syncError) {
+        const { error: syncError } = await supabase.functions.invoke(
+          "sync-revenuecat-premium",
+        );
+        if (syncError) {
           console.warn("[premium] RevenueCat sync failed", syncError);
         }
         qc.invalidateQueries({ queryKey: ["profile", userId] });
@@ -1859,6 +1866,4 @@ export function useSubmitConciergeRequest(userId: string | undefined) {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["concierge-requests", userId] }),
   });
 }
-
-
 
