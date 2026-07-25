@@ -35,29 +35,28 @@ export default function Feedback() {
       return;
     }
 
-    try {
-      submitFeedback.mutate(
-        {
-          match_id: matchId!,
-          rating,
-          showed_up: showedUp,
-          reconnect,
-          notes: notes || undefined,
+    submitFeedback.mutate(
+      {
+        match_id: matchId!,
+        rating,
+        showed_up: showedUp,
+        reconnect,
+        notes: notes || undefined,
+      },
+      {
+        onSuccess: () => {
+          Alert.alert("Thank you!", "Your feedback has been submitted.", [
+            {
+              text: "Back to bookings",
+              onPress: () => router.push("/(tabs)/bookings"),
+            },
+          ]);
         },
-        {
-          onSuccess: () => {
-            Alert.alert("Thank you!", "Your feedback has been submitted.", [
-              {
-                text: "Back to bookings",
-                onPress: () => router.push("/(tabs)/bookings"),
-              },
-            ]);
-          },
-        }
-      );
-    } catch (err) {
-      Alert.alert("Error", (err as Error).message);
-    }
+        onError: (err) => {
+          Alert.alert("Error", err.message);
+        },
+      }
+    );
   };
 
   if (isLoading) {

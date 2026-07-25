@@ -105,9 +105,9 @@ export default function ProfileScreen() {
     );
   }
 
+  const [initialized, setInitialized] = useState(false);
   useEffect(() => {
-    if (!profile) return;
-    // This is editable form state, initialized when the profile query resolves.
+    if (!profile || initialized) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setName(profile.name);
     setPhoto(profile.photo_url);
@@ -117,11 +117,12 @@ export default function ProfileScreen() {
     setEnergy([profile.energy_level]);
     setConv([profile.conv_style]);
     setLanguages(profile.languages);
-  }, [profile]);
+    setInitialized(true);
+  }, [profile, initialized]);
 
   async function pickPhoto() {
     const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ["images"],
       allowsEditing: true,
       aspect: [1, 1],
       quality: 0.85,
@@ -135,6 +136,8 @@ export default function ProfileScreen() {
       });
       setPhoto(url);
       await update.mutateAsync({ photo_url: url });
+    } catch (err) {
+      Alert.alert("Upload failed", (err as Error).message);
     } finally {
       setUploading(false);
     }

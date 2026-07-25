@@ -121,9 +121,9 @@ export default function ClubScreen() {
   const [budget, setBudget] = useState(150);
   const [distance, setDistance] = useState(25);
 
+  const [initialized, setInitialized] = useState(false);
   useEffect(() => {
-    if (!profile) return;
-    // This is editable form state, initialized when the profile query resolves.
+    if (!profile || initialized) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setInterests(profile.interests ?? []);
     setVibes(profile.preferred_vibes ?? []);
@@ -131,7 +131,8 @@ export default function ClubScreen() {
     setTravelCity(profile.travel_city ? [profile.travel_city] : []);
     setBudget(Math.round((profile.budget_max_cents || 15000) / 100));
     setDistance(profile.max_distance_km || 25);
-  }, [profile]);
+    setInitialized(true);
+  }, [profile, initialized]);
 
   const savePreferences = async () => {
     try {
