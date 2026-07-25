@@ -149,7 +149,6 @@ export function DiningSwipeDeck({
   );
   const normalizedMaybeIndex = maybeEvents.length === 0 ? 0 : maybeIndex % maybeEvents.length;
   const currentEvent = mode === "browse" ? events[browseIndex] : maybeEvents[normalizedMaybeIndex];
-  const currentIndex = mode === "browse" ? browseIndex : normalizedMaybeIndex;
 
   const decide = (decision: Decision) => {
     if (!currentEvent) return;
