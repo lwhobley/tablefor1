@@ -1,5 +1,5 @@
 // Shared guard for edge functions that must only run for admins/cron jobs,
-// never for arbitrary authenticated diners or partners. There's no admin
+// never for arbitrary authenticated diners. There's no admin
 // role in auth.users yet, so we gate on a shared secret the admin
 // dashboard/cron job sends as `x-admin-secret`, matched against the
 // ADMIN_FUNCTION_SECRET env var. We also accept the service-role key as a
@@ -8,7 +8,7 @@
 
 // Constant-time string comparison. A plain `===` short-circuits on the first
 // differing byte, which leaks secret prefixes through response timing; this
-// gate protects functions that move real money (settle-payout), so compare
+// gate protects admin-only functions, so compare
 // every byte unconditionally.
 function timingSafeEqual(provided: string, expected: string): boolean {
   const enc = new TextEncoder();

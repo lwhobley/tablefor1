@@ -12,8 +12,8 @@ check-in, feedback, mutual Sparks, reconnect dinners, and member safety.
   interests, preferred vibes, availability, trust, and Premium status
 - Travel mode, Dinner Roulette, early access, waitlists, and +1 invitations
 - Revealed group profiles, real-time chat, photos, reactions, prompts, and polls
-- Restaurant menus, directions, calendar export, partner reservation links,
-  parking details, favorites, recommendations, and active partner perks
+- Restaurant menus, directions, calendar export, reservation links,
+  parking details, favorites, and recommendations
 - Check-in selfies, trust scores, profile verification, reporting, and blocking
 - Post-dinner feedback, private Sparks, mutual reconnects, stories, and passport
 - Premium Signature Tables, private-table requests, and dining concierge
@@ -44,9 +44,8 @@ to `/auth/callback`.
    or `supabase db push`. Each migration depends on the ones before it —
    see the header comment at the top of each file for what it adds.
    Notably: `0001` is the full Phase 1–3 schema + RLS; `0002` provisions
-   the `avatars` bucket; `0003` installs the partner-scoped RPCs; `0015`
-   onward add payout idempotency, booking-capacity enforcement, and the
-   RLS/security fixes described in their header comments.
+   the `avatars` bucket; `0015` onward adds booking-capacity enforcement
+   and the RLS/security fixes described in their header comments.
 3. In **Authentication -> URL Configuration**, add the exact production
    callback `https://tablefour2.vercel.app/auth/callback` plus the local and
    native callback URLs listed in `supabase/config.toml`.
@@ -75,7 +74,7 @@ guess from partial profile state.
 
 ```
 app/
-  _layout.tsx           # providers + diner auth gate (skips /partner/*)
+  _layout.tsx           # providers + auth gate
   index.tsx             # entry redirect
   (auth)/
     login.tsx           # magic link form
@@ -92,15 +91,6 @@ app/
   passport.tsx          # checked-in dining history
   safety/               # verification, reports, and safety controls
   concierge.tsx         # Premium member-care requests
-  partner/              # Phase 3 partner portal (own auth gate)
-    _layout.tsx         # session + restaurants.partner_email check
-    login.tsx           # partner magic link
-    dashboard.tsx       # 30-day metrics + Stripe Connect prompt
-    availability.tsx    # submit + list partner_availability rows
-    events.tsx          # upcoming events with cover counts (RPC)
-    settings.tsx        # editable venue profile
-    connect/
-      stripe.tsx        # kicks off Stripe Connect onboarding
 ```
 
 The auth gate in `app/_layout.tsx` is the single source of truth for who
@@ -134,9 +124,6 @@ Live under `supabase/functions/`:
 | `create-checkout-session` | Diner POST — Stripe Checkout for a booking |
 | `create-premium-checkout-session` | Diner POST — Stripe Checkout (subscription) for Premium |
 | `stripe-webhook` | Stripe → confirms bookings, activates/renews/cancels Premium |
-| `create-connect-link` | Partner POST — Stripe Express onboarding URL |
-| `approve-availability` | Admin-only — turns a slot into an event |
-| `settle-payout` | Admin/cron-only — pays a partner out after an event completes |
 | `run-matching` | Admin/cron-only — groups confirmed bookings into matches |
 | `auth-send-email` | Supabase Auth Hook — sends branded confirmation, recovery, invite, and security emails through Resend |
 | `send-welcome-email` | Authenticated sign-in — sends one Resend welcome email after confirmation |
@@ -148,7 +135,7 @@ Live under `supabase/functions/`:
 `ADMIN_FUNCTION_SECRET` (see `.env.functions.example`) — there's no admin
 role in `auth.users` yet, so this shared secret is what stands between
 "any authenticated user" and "admin" for these endpoints. Whatever
-dashboard/cron job calls them needs that header set; a plain diner/partner
+dashboard/cron job calls them needs that header set; a plain diner
 JWT is rejected with 401.
 
 Deploy with `supabase functions deploy <name>`. They expect the env vars
@@ -158,17 +145,6 @@ in `.env.functions.example`:
 cp .env.functions.example supabase/.env
 supabase secrets set --env-file supabase/.env
 ```
-
-## Partner portal
-
-- Magic link login at `/partner/login` keyed on `restaurants.partner_email`.
-- The partner layout calls `partner_my_restaurant()` and shows a "no venue
-  on file" screen if no row exists, so a diner who signs in here can't
-  accidentally see partner UI.
-- Dashboard, events, and stats all go through the SECURITY DEFINER RPCs
-  added in migration `0003` — they bypass the diner-side bookings RLS but
-  scope internally on `partner_email = auth.email()`, so partners only
-  ever see counts and first names for diners at their own events.
 
 ## Testing & CI
 

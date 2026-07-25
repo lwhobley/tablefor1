@@ -36,9 +36,12 @@ export type Dietary =
 export type EventFormat =
   | "dinner"
   | "brunch"
+  | "lunch"
   | "late_night"
   | "food_crawl"
-  | "chefs_table";
+  | "chefs_table"
+  | "picnic";
+export type EventType = "reservation" | "catered";
 export type EventStatus =
   | "open"
   | "matched"
@@ -103,6 +106,7 @@ export type EventRow = {
   dress_code: string | null;
   host_name: string | null;
   is_signature: boolean;
+  event_type: EventType;
 };
 
 export type BookingStatus = "pending" | "confirmed" | "cancelled" | "refunded";
@@ -127,8 +131,6 @@ export type Restaurant = {
   address: string;
   cuisine: string[];
   capacity: number;
-  stripe_account: string | null;
-  partner_email: string | null;
   is_active: boolean;
   website_url: string | null;
   menu_url: string | null;

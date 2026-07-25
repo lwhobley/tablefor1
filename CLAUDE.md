@@ -29,15 +29,12 @@ expo-router file-based routing. Route groups:
 - `(auth)/` — magic-link login
 - `(onboarding)/` — name → photo → food → personality → city
 - `(tabs)/` — main app: home (tables), bookings, matches, club, profile
-- `partner/` — separate portal with its own auth gate checking `partner_email`
-
-Auth gate in `_layout.tsx`: no session → `/intro`; session without `onboarded_at` → onboarding; onboarded → `/(tabs)/home`; partner routes bypass the diner gate entirely.
+Auth gate in `_layout.tsx`: no session → `/intro`; session without `onboarded_at` → onboarding; onboarded → `/(tabs)/home`.
 
 ### Data layer (`lib/`)
 
 - **`queries.ts`** (~1870 lines): all React Query hooks. `useQuery` for reads, `useMutation` for writes. Query keys follow `["entity"]` or `["entity", id]`. Mutations invalidate related keys in `onSuccess`. Several server-side RPCs for complex/secure queries (`get_upcoming_events`, `get_match_detail`, `get_event_attendees`, etc.).
 - **`supabase.ts`**: Supabase client singleton + all TypeScript type definitions for database entities.
-- **`partnerQueries.ts`**: partner portal query hooks (separate from diner hooks).
 - **`auth.tsx`**: `AuthProvider` context, wraps the app inside `QueryClientProvider`. `signOut` clears the query cache.
 - Pure logic in `mystery.ts`, `sparks.ts`, `matchValue.ts` — these are the only files with unit tests.
 
@@ -47,12 +44,12 @@ Auth gate in `_layout.tsx`: no session → `/intro`; session without `onboarded_
 
 Key function categories:
 - **Payment**: `create-checkout-session`, `create-premium-checkout-session`, `stripe-webhook`
-- **Matching pipeline**: `run-matching` (groups bookings into matches), `reveal-match` (reveals + emails), `resy-sniper` (books Resy reservations)
+- **Matching pipeline**: `run-matching` (groups bookings into matches), `reveal-match` (reveals + emails), `resy-sniper` (books Resy reservations for `reservation` events)
 - **Email**: `auth-send-email` (auth hook), `send-welcome-email`, `send-booking-confirmation`, `send-match-revealed`, `send-feedback-request` — all via Resend
 - **Subscriptions**: `revenuecat-webhook`, `sync-revenuecat-premium` (iOS), Stripe webhook handles web subscriptions
 - **Admin-only functions** require `ADMIN_FUNCTION_SECRET` header
 
-**Migrations** in `supabase/migrations/`. Early ones numbered `0001`–`0022`, later ones use `YYYYMMDDHHMMSS_description.sql`. All tables use RLS. Key scoping patterns: users read/update own row, matches scoped to participants (`auth.uid() = any(user_ids)`), partner access scoped by `partner_email = auth.email()`.
+**Migrations** in `supabase/migrations/`. Early ones numbered `0001`–`0022`, later ones use `YYYYMMDDHHMMSS_description.sql`. All tables use RLS. Key scoping patterns: users read/update own row, matches scoped to participants (`auth.uid() = any(user_ids)`).
 
 ### Resy integration
 
@@ -66,7 +63,8 @@ Diner pays via Checkout Session → `stripe-webhook` confirms booking on `checko
 
 - **TypeScript strict mode**. Path alias `@/*` maps to repo root.
 - **NativeWind className** for all styling. Theme colors: cream, pearl, gold, teal, ink, rust, clay, sage, muted, forest. Serif font: Georgia.
-- **Event formats**: `dinner | brunch | late_night | food_crawl | chefs_table` (DB enum `event_format`).
+- **Event formats**: `dinner | brunch | lunch | late_night | food_crawl | chefs_table | picnic` (DB enum `event_format`).
+- **Event types**: `reservation | catered` (DB enum `event_type`). Reservation events book via Resy; catered events are privately catered dinners/lunches/brunches/picnics at venues chosen by the app.
 - **ESLint** extends `expo` preset. `supabase/functions/` is excluded (Deno, not Node). The `react-hooks/set-state-in-effect` rule is active — suppress with `eslint-disable-next-line` when initializing form state from async data.
 - **Vitest** scoped to `lib/**/*.test.ts` only. Tests cover pure logic (mystery reveal, spark detection, match scoring), not hooks or components.
 - **Edge functions** are Deno — use `https://esm.sh/` imports, not npm. The `deno.json` config sets `"lock": false`.

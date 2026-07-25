@@ -435,9 +435,6 @@ verify_jwt = false
 [functions.revenuecat-webhook]
 verify_jwt = false
 
-[functions.approve-availability]
-verify_jwt = false
-
 [functions.resy-sniper]
 verify_jwt = false
 
@@ -459,8 +456,6 @@ verify_jwt = false
 [functions.send-match-revealed]
 verify_jwt = false
 
-[functions.settle-payout]
-verify_jwt = false
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/auth-send-email/*.html" ]
